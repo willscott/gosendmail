@@ -46,7 +46,7 @@ func SendTo(dest string, parsed *lib.ParsedMessage, cfg *lib.Config, msg []byte)
 	}
 
 	// try ssl upgrade
-	lib.StartTLS(conn, cfg)
+	lib.StartTLS(conn, dest, cfg)
 
 	// send email
 	if err := conn.Mail(parsed.Sender); err != nil {

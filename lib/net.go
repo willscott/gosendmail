@@ -92,8 +92,9 @@ func DialFromList(hosts []string, cfg *Config) *smtp.Client {
 	return nil
 }
 
-func StartTLS(conn *smtp.Client, cfg *Config) {
+func StartTLS(conn *smtp.Client, serverName string, cfg *Config) {
 	tlsCfg := cfg.GetTLS()
+	tlsCfg.ServerName = serverName
 	err := conn.StartTLS(tlsCfg)
 	if err != nil {
 		log.Fatalf("Failed to secure sending: %v", err)
