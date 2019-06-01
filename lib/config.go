@@ -21,11 +21,15 @@ func (c *Config) GetTLS() *tls.Config {
 	if c.tlscfg != nil {
 		return c.tlscfg
 	}
-	cert, err := tls.LoadX509KeyPair(c.TLSCert, c.TLSKey)
-	if err != nil {
-		log.Fatal(err)
+	if c.TLSCert != "" {
+		cert, err := tls.LoadX509KeyPair(c.TLSCert, c.TLSKey)
+		if err != nil {
+			log.Fatal(err)
+		}
+		c.tlscfg = &tls.Config{Certificates: []tls.Certificate{cert}}
+	} else {
+		c.tlscfg = &tls.Config{}
 	}
-	c.tlscfg = &tls.Config{Certificates: []tls.Certificate{cert}}
 
 	return c.tlscfg
 }
@@ -58,6 +62,12 @@ func GetConfig(domain string) *Config {
 	}
 	if sendCommand, ok := cfgMap["sendcommand"].(string); ok {
 		cfg.SendCommand = sendCommand
+	}
+	if cert, ok := cfgMap["tlscert"].(string); ok {
+		cfg.TLSCert = cert
+	}
+	if key, ok := cfgMap["tlskey"].(string); ok {
+		cfg.TLSKey = key
 	}
 
 	return &cfg
