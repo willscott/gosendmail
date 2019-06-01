@@ -8,8 +8,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/willscott/gosendmail/lib"
 	"github.com/spf13/viper"
+	"github.com/willscott/gosendmail/lib"
 )
 
 func main() {

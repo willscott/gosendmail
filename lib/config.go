@@ -1,14 +1,33 @@
 package lib
 
 import (
+	"crypto/tls"
+	"log"
+
 	"github.com/spf13/viper"
 )
 
 type Config struct {
-	DkimKeyCmd string
+	DkimKeyCmd   string
 	DkimSelector string
-	DialerProxy string
-	SendCommand string
+	DialerProxy  string
+	TLSCert      string
+	TLSKey       string
+	tlscfg       *tls.Config
+	SendCommand  string
+}
+
+func (c *Config) GetTLS() *tls.Config {
+	if c.tlscfg != nil {
+		return c.tlscfg
+	}
+	cert, err := tls.LoadX509KeyPair(c.TLSCert, c.TLSKey)
+	if err != nil {
+		log.Fatal(err)
+	}
+	c.tlscfg = &tls.Config{Certificates: []tls.Certificate{cert}}
+
+	return c.tlscfg
 }
 
 func GetConfig(domain string) *Config {

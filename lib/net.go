@@ -2,9 +2,8 @@ package lib
 
 import (
 	"context"
-	"crypto/tls"
 	"log"
-	"net"	
+	"net"
 	"net/smtp"
 	"net/url"
 	"time"
@@ -23,7 +22,7 @@ func getDialer(cfg *Config) proxy.ContextDialer {
 			log.Fatal(err)
 		}
 
-		p,ok := d.(proxy.ContextDialer)
+		p, ok := d.(proxy.ContextDialer)
 		if !ok {
 			log.Fatal("Parsed Proxy doesn't support context")
 		}
@@ -39,10 +38,10 @@ func FindServers(domain string, cfg *Config) []string {
 	}
 
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second))
-	mxs,err := resolver.LookupMX(ctx, domain)
+	mxs, err := resolver.LookupMX(ctx, domain)
 	cancel()
 	if err != nil {
-	 	if dnserr, ok := err.(*net.DNSError); !ok || dnserr.Err != "no such host" {
+		if dnserr, ok := err.(*net.DNSError); !ok || dnserr.Err != "no such host" {
 			log.Fatal(err)
 		}
 	}
@@ -66,26 +65,26 @@ func DialFromList(hosts []string, cfg *Config) *smtp.Client {
 
 	for _, host := range hosts {
 		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second))
-		conn, err := dialer.DialContext(ctx,"tcp", host + ":smtp")
+		conn, err := dialer.DialContext(ctx, "tcp", host+":smtp")
 		cancel()
 		if err == nil {
 			c, err := smtp.NewClient(conn, host)
 			if err == nil {
 				return c
-			}	
+			}
 		}
 	}
 
 	// fall back to 587 - mail submission port
 	for _, host := range hosts {
 		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second))
-		conn, err := dialer.DialContext(ctx,"tcp", host + ":587")
+		conn, err := dialer.DialContext(ctx, "tcp", host+":587")
 		cancel()
 		if err == nil {
 			c, err := smtp.NewClient(conn, host)
 			if err == nil {
 				return c
-			}	
+			}
 		}
 	}
 
@@ -94,7 +93,7 @@ func DialFromList(hosts []string, cfg *Config) *smtp.Client {
 }
 
 func StartTLS(conn *smtp.Client, cfg *Config) {
-	tlsCfg := &tls.Config{}
+	tlsCfg := cfg.GetTLS()
 	err := conn.StartTLS(tlsCfg)
 	if err != nil {
 		log.Fatalf("Failed to secure sending: %v", err)

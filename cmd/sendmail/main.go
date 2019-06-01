@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -7,8 +6,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/willscott/gosendmail/lib"
 	"github.com/spf13/viper"
+	"github.com/willscott/gosendmail/lib"
 )
 
 func main() {
@@ -31,8 +30,14 @@ func main() {
 		log.Fatalf("No configuration for sender %s", parsed.SourceDomain)
 	}
 
+	for _, dest := range parsed.DestDomain {
+		SendTo(dest, &parsed, cfg, msg)
+	}
+}
+
+func SendTo(dest string, parsed *lib.ParsedMessage, cfg *lib.Config, msg []byte) {
 	// enumerate possible mx IPs
-	hosts := lib.FindServers(parsed.DestDomain, cfg)
+	hosts := lib.FindServers(dest, cfg)
 
 	// open connection
 	conn := lib.DialFromList(hosts, cfg)
@@ -47,8 +52,11 @@ func main() {
 	if err := conn.Mail(parsed.Sender); err != nil {
 		log.Fatal(err)
 	}
-	if err := conn.Rcpt(parsed.Rcpt); err != nil {
-		log.Fatal(err)
+
+	for _, rcpt := range parsed.Rcpt[dest] {
+		if err := conn.Rcpt(rcpt); err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	// Send the email body.
@@ -74,4 +82,3 @@ func main() {
 		log.Fatal(err)
 	}
 }
-

@@ -23,20 +23,20 @@ func ReadMessage(reader io.Reader) []byte {
 	scanner := bufio.NewScanner(reader)
 	scanner.Split(bufio.ScanBytes)
 	mailMsg := make([]byte, 0)
-    for scanner.Scan() {
+	for scanner.Scan() {
 		mailMsg = append(mailMsg, scanner.Bytes()...)
-    }
-    if err := scanner.Err(); err != nil && err != io.EOF {
-        log.Fatalf("reading message: %v", err)
+	}
+	if err := scanner.Err(); err != nil && err != io.EOF {
+		log.Fatalf("reading message: %v", err)
 	}
 	return mailMsg
 }
 
 type ParsedMessage struct {
-	Sender string
+	Sender       string
 	SourceDomain string
-	Rcpt string
-	DestDomain string
+	Rcpt         map[string][]string
+	DestDomain   []string
 	*mail.Message
 }
 
@@ -48,7 +48,6 @@ func ParseMessage(msg *[]byte) ParsedMessage {
 
 	header := m.Header
 
-
 	// parse out from
 	ap := mail.AddressParser{}
 	sender, err := ap.Parse(header.Get("From"))
@@ -57,23 +56,61 @@ func ParseMessage(msg *[]byte) ParsedMessage {
 	}
 	_, fromHost := splitAddress(sender.Address)
 
-	dest, err := ap.Parse(header.Get("To"))
-	if err != nil {
-		log.Fatal(err)
+	// parse rcpt and dests from to / cc / bcc
+	addrs := make([]*mail.Address, 0, 5)
+	for _, f := range []string{"To", "CC", "BCC"} {
+		for _, line := range header[f] {
+			dests, err := ap.ParseList(line)
+			if err != nil {
+				log.Fatal(err)
+			}
+			addrs = append(addrs, dests...)
+		}
 	}
 
-	_, toHost := splitAddress(dest.Address)
+	rcpts := make(map[string][]string)
+	for _, addr := range addrs {
+		_, toHost := splitAddress(addr.Address)
+		if _, ok := rcpts[toHost]; !ok {
+			rcpts[toHost] = make([]string, 0)
+		}
+		rcpts[toHost] = append(rcpts[toHost], addr.String())
+	}
+	var hosts []string
+	for k := range rcpts {
+		hosts = append(hosts, k)
+	}
 
 	return ParsedMessage{
-		Sender: sender.Address,
+		Sender:       sender.Address,
 		SourceDomain: fromHost,
-		Rcpt: dest.Address,
-		DestDomain: toHost,
-		Message: m,
+		Rcpt:         rcpts,
+		DestDomain:   hosts,
+		Message:      m,
 	}
 }
 
-func SignMessage (msg *[]byte, parsed ParsedMessage, cfg *Config) error {
+/*
+TODO: add sanitization.
+Caveat: Sending client might not appreciate re-writing of message-id (e.g. threading)
+func SanitizeMessage(msg *[]byte, parsed ParsedMessage, cfg *Config) error {
+	// Remove potentially-revealing headers.
+	removedHeaders := []string{"date", "message-id"}
+
+	// TODO: santize date
+
+	// set message id
+	hasher := sha256.New()
+	io.Copy(hasher, parsed.Body)
+	hex := hex.EncodeToString(hasher.Sum(nil))
+	header := "Message-ID: <" + hex + "@" + parsed.SourceDomain + ">\r\n"
+	*msg = append([]byte(header), *msg...)
+
+	return nil
+}
+*/
+
+func SignMessage(msg *[]byte, parsed ParsedMessage, cfg *Config) error {
 	// dkim sign
 	recommendedHeaders := []string{
 		"from", "sender", "reply-to", "subject", "date", "message-id", "to", "cc",
@@ -82,9 +119,9 @@ func SignMessage (msg *[]byte, parsed ParsedMessage, cfg *Config) error {
 		"resent-cc", "resent-message-id", "in-reply-to", "references", "list-id", "list-help",
 		"list-unsubscribe", "list-subscribe", "list-post", "list-owner", "list-archive"}
 	recommendedSet := make(map[string]struct{}, len(recommendedHeaders))
-    for _, s := range recommendedHeaders {
-        recommendedSet[s] = struct{}{}
-    }
+	for _, s := range recommendedHeaders {
+		recommendedSet[s] = struct{}{}
+	}
 	filteredHeaders := make([]string, 0)
 	for h, v := range parsed.Message.Header {
 		hl := strings.ToLower(h)
@@ -93,10 +130,10 @@ func SignMessage (msg *[]byte, parsed ParsedMessage, cfg *Config) error {
 				filteredHeaders = append(filteredHeaders, hl)
 			}
 		}
-    }
+	}
 
-	keycmd := strings.Split(cfg.SendCommand, " ")
-	pkey, err := exec.Command(keycmd[0], keycmd[1:]...).Output();
+	keycmd := strings.Split(cfg.DkimKeyCmd, " ")
+	pkey, err := exec.Command(keycmd[0], keycmd[1:]...).Output()
 	if err != nil {
 		log.Fatalf("Could not retreive DKIM key: %v\n", err)
 	}
