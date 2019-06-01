@@ -49,8 +49,8 @@ func SendTo(dest string, parsed *lib.ParsedMessage, cfg *lib.Config, msg []byte)
 	lib.StartTLS(conn, hostname, cfg)
 
 	// send email
-	if err := conn.Mail(parsed.MailFrom); err != nil {
-		log.Fatalf("Mail From Errored: %v", err)
+	if err := conn.Mail(parsed.Sender); err != nil {
+		log.Fatalf("Mail From (%s) Errored: %v", parsed.Sender, err)
 	}
 
 	for _, rcpt := range parsed.Rcpt[dest] {
