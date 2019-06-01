@@ -52,15 +52,12 @@ func FindServers(domain string, cfg *Config) []string {
 		}
 		return hosts
 	} else {
-		// fallback to A/quad-A records.
-		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second))
-		addrs, _ := resolver.LookupHost(ctx, domain)
-		cancel()
-		return addrs
+		// fall back to a record.
+		return []string{domain}
 	}
 }
 
-func DialFromList(hosts []string, cfg *Config) *smtp.Client {
+func DialFromList(hosts []string, cfg *Config) (*smtp.Client, string) {
 	dialer := getDialer(cfg)
 
 	for _, host := range hosts {
@@ -70,7 +67,7 @@ func DialFromList(hosts []string, cfg *Config) *smtp.Client {
 		if err == nil {
 			c, err := smtp.NewClient(conn, host)
 			if err == nil {
-				return c
+				return c, host
 			}
 		}
 	}
@@ -83,13 +80,13 @@ func DialFromList(hosts []string, cfg *Config) *smtp.Client {
 		if err == nil {
 			c, err := smtp.NewClient(conn, host)
 			if err == nil {
-				return c
+				return c, host
 			}
 		}
 	}
 
 	log.Fatal("Unable to connect to any mail server")
-	return nil
+	return nil, ""
 }
 
 func StartTLS(conn *smtp.Client, serverName string, cfg *Config) {

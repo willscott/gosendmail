@@ -40,13 +40,13 @@ func SendTo(dest string, parsed *lib.ParsedMessage, cfg *lib.Config, msg []byte)
 	hosts := lib.FindServers(dest, cfg)
 
 	// open connection
-	conn := lib.DialFromList(hosts, cfg)
+	conn, hostname := lib.DialFromList(hosts, cfg)
 	if err := conn.Hello(parsed.SourceDomain); err != nil {
 		log.Fatal(err)
 	}
 
 	// try ssl upgrade
-	lib.StartTLS(conn, dest, cfg)
+	lib.StartTLS(conn, hostname, cfg)
 
 	// send email
 	if err := conn.Mail(parsed.Sender); err != nil {
