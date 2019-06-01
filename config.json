@@ -1,0 +1,7 @@
+{
+  "example.com": {
+    "DkimKeyCmd": "cat example.pem",
+    "DkimSelector": "default",
+    "SendCommand": "gosendmail"
+  }
+}
