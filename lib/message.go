@@ -34,6 +34,7 @@ func ReadMessage(reader io.Reader) []byte {
 
 type ParsedMessage struct {
 	Sender       string
+	MailFrom     string
 	SourceDomain string
 	Rcpt         map[string][]string
 	DestDomain   []string
@@ -54,7 +55,10 @@ func ParseMessage(msg *[]byte) ParsedMessage {
 	if err != nil {
 		log.Fatal(err)
 	}
-	_, fromHost := splitAddress(sender.Address)
+	fromName, fromHost := splitAddress(sender.Address)
+	if sender.Name == "" {
+		sender.Name = fromName
+	}
 
 	// parse rcpt and dests from to / cc / bcc
 	addrs := make([]*mail.Address, 0, 5)
@@ -70,9 +74,12 @@ func ParseMessage(msg *[]byte) ParsedMessage {
 
 	rcpts := make(map[string][]string)
 	for _, addr := range addrs {
-		_, toHost := splitAddress(addr.Address)
+		toName, toHost := splitAddress(addr.Address)
 		if _, ok := rcpts[toHost]; !ok {
 			rcpts[toHost] = make([]string, 0)
+		}
+		if addr.Name == "" {
+			addr.Name = toName
 		}
 		rcpts[toHost] = append(rcpts[toHost], addr.String())
 	}
@@ -83,6 +90,7 @@ func ParseMessage(msg *[]byte) ParsedMessage {
 
 	return ParsedMessage{
 		Sender:       sender.Address,
+		MailFrom:     sender.String(),
 		SourceDomain: fromHost,
 		Rcpt:         rcpts,
 		DestDomain:   hosts,
