@@ -25,6 +25,9 @@ func main() {
 	// Parse msg
 	parsed := lib.ParseMessage(&msg)
 
+	// remove bcc
+	lib.RemoveHeader(&msg, "BCC")
+
 	cfg := lib.GetConfig(parsed.SourceDomain)
 	if cfg == nil {
 		log.Fatalf("No configuration for sender %s", parsed.SourceDomain)

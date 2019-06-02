@@ -3,11 +3,14 @@ package lib
 import (
 	"bufio"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"log"
 	"net/mail"
 	"os/exec"
 	"strings"
+	"time"
 
 	dkim "github.com/toorop/go-dkim"
 )
@@ -90,25 +93,56 @@ func ParseMessage(msg *[]byte) ParsedMessage {
 	}
 }
 
-/*
-TODO: add sanitization.
-Caveat: Sending client might not appreciate re-writing of message-id (e.g. threading)
-func SanitizeMessage(msg *[]byte, parsed ParsedMessage, cfg *Config) error {
-	// Remove potentially-revealing headers.
-	removedHeaders := []string{"date", "message-id"}
+func RemoveHeader(msg *[]byte, header string) {
+	startPtr := 0
+	endPtr := bytes.Index(*msg, []byte{13, 10, 13, 10})
+	if endPtr == -1 {
+		log.Fatal("couldn't locate end of headers.")
+	}
+	out := make([]byte, 0, len(*msg))
+	match := []byte(header + ":")
+	for startPtr < endPtr {
+		nextPtr := bytes.Index((*msg)[startPtr:], []byte{13, 10}) + 2
+		// headers keep going until a line that doesn't start with space/tab
+		for (*msg)[startPtr+nextPtr] == byte(' ') || (*msg)[startPtr+nextPtr] == byte('	') {
+			nextPtr = nextPtr + bytes.Index((*msg)[startPtr+nextPtr:], []byte{13, 10}) + 2
+		}
 
-	// TODO: santize date
+		if !bytes.HasPrefix((*msg)[startPtr:], match) {
+			out = append(out, (*msg)[startPtr:startPtr+nextPtr]...)
+		}
+		startPtr += nextPtr
+	}
+	out = append(out, (*msg)[endPtr:]...)
+	*msg = out
+}
+
+func SanitizeMessage(msg *[]byte, parsed ParsedMessage, cfg *Config) error {
+	// line endings.
+	if bytes.Index(*msg, []byte{13, 10, 13, 10}) < 0 {
+		// \n -> \r\n
+		*msg = bytes.Replace(*msg, []byte{10}, []byte{13, 10}, -1)
+	}
+
+	// Remove potentially-revealing headers.
+	removedHeaders := []string{"Date", "Message-ID"}
+	for _, h := range removedHeaders {
+		RemoveHeader(msg, h)
+	}
+
+	// set date
+	header := "Date: " + time.Now().Truncate(15*time.Minute).UTC().Format(time.RFC1123Z) + "\r\n"
+	*msg = append([]byte(header), *msg...)
 
 	// set message id
 	hasher := sha256.New()
 	io.Copy(hasher, parsed.Body)
 	hex := hex.EncodeToString(hasher.Sum(nil))
-	header := "Message-ID: <" + hex + "@" + parsed.SourceDomain + ">\r\n"
+	header = "Message-ID: <" + hex + "@" + parsed.SourceDomain + ">\r\n"
 	*msg = append([]byte(header), *msg...)
 
 	return nil
 }
-*/
 
 func SignMessage(msg *[]byte, parsed ParsedMessage, cfg *Config) error {
 	// dkim sign

@@ -32,6 +32,8 @@ func main() {
 		log.Fatalf("No configuration for sender %s", parsed.SourceDomain)
 	}
 
+	lib.SanitizeMessage(&msg, parsed, cfg)
+
 	lib.SignMessage(&msg, parsed, cfg)
 
 	// send to remote server.
