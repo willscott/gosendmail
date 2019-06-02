@@ -9,9 +9,6 @@ workflow "Go" {
 action "gofmt" {
   uses = "sjkaliski/go-github-actions/fmt@v0.4.0"
   secrets = ["GITHUB_TOKEN"]
-  env = {
-    GO_WORKING_DIR = "./..."
-  }
 }
 
 action "gobuild" {
