@@ -14,6 +14,9 @@ func main() {
 	// get config
 	viper.AddConfigPath("$HOME/.gosendmail")
 	viper.AddConfigPath(".")
+	viper.SetDefault("tls", true)
+	viper.SetEnvPrefix("gosendmail")
+	viper.AutomaticEnv()
 	err := viper.ReadInConfig()
 	if err != nil {
 		log.Fatal(err)
@@ -34,54 +37,57 @@ func main() {
 	}
 
 	for _, dest := range parsed.DestDomain {
-		SendTo(dest, &parsed, cfg, msg)
+		log.Printf("Mail for %s:", dest)
+		SendTo(dest, &parsed, cfg, msg, viper.GetBool("tls"))
+		log.Printf(" Sent.\n")
 	}
 }
 
-func SendTo(dest string, parsed *lib.ParsedMessage, cfg *lib.Config, msg []byte) {
+func SendTo(dest string, parsed *lib.ParsedMessage, cfg *lib.Config, msg []byte, tls bool) {
 	// enumerate possible mx IPs
 	hosts := lib.FindServers(dest, cfg)
 
 	// open connection
 	conn, hostname := lib.DialFromList(hosts, cfg)
 	if err := conn.Hello(parsed.SourceDomain); err != nil {
-		log.Fatal(err)
+		log.Fatalf("Errored @hello: %v", err)
 	}
 
 	// try ssl upgrade
-	lib.StartTLS(conn, hostname, cfg)
+	if tls {
+		if err := lib.StartTLS(conn, hostname, cfg); err != nil {
+			log.Fatalf("Errored @starttls: %v", err)
+		}
+	}
 
 	// send email
 	if err := conn.Mail(parsed.Sender); err != nil {
-		log.Fatalf("Mail From (%s) Errored: %v", parsed.Sender, err)
+		log.Fatalf("Errored @mailfrom: %v", err)
 	}
 
 	for _, rcpt := range parsed.Rcpt[dest] {
 		if err := conn.Rcpt(rcpt); err != nil {
-			log.Fatalf("Rcpt To Errored: %v", err)
+			log.Fatalf("Errored @rcptto: %v", err)
 		}
 	}
 
 	// Send the email body.
 	wc, err := conn.Data()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Errored @data: %v", err)
 	}
 
 	if _, err := io.Copy(wc, bytes.NewReader(msg)); err != nil {
-		log.Fatal(err)
-	}
-	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Errored sending: %v", err)
 	}
 	err = wc.Close()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Errored closing send: %v", err)
 	}
 
 	// Send the QUIT command and close the connection.
 	err = conn.Quit()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Errored @quit: %v", err)
 	}
 }

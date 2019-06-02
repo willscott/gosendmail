@@ -49,8 +49,9 @@ func main() {
 		io.Copy(stdin, bytes.NewReader(msg))
 	}()
 
-	_, err = cmd.CombinedOutput()
+	log, err = cmd.CombinedOutput()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(log, err)
 	}
+	log.Printf("%s\n", log)
 }
