@@ -51,7 +51,7 @@ func main() {
 
 	l, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Fatal(l, err)
+		log.Fatalf("%s: %v\n", l, err)
 	}
 	log.Printf("%s\n", l)
 }

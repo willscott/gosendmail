@@ -29,7 +29,7 @@ func main() {
 	parsed := lib.ParseMessage(&msg)
 
 	// remove bcc
-	lib.RemoveHeader(&msg, "BCC")
+	//lib.RemoveHeader(&msg, "BCC")
 
 	cfg := lib.GetConfig(parsed.SourceDomain)
 	if cfg == nil {
