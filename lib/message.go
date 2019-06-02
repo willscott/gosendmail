@@ -94,6 +94,12 @@ func ParseMessage(msg *[]byte) ParsedMessage {
 }
 
 func RemoveHeader(msg *[]byte, header string) {
+	// line endings.
+	if bytes.Index(*msg, []byte{13, 10, 13, 10}) < 0 {
+		// \n -> \r\n
+		*msg = bytes.Replace(*msg, []byte{10}, []byte{13, 10}, -1)
+	}
+
 	startPtr := 0
 	endPtr := bytes.Index(*msg, []byte{13, 10, 13, 10})
 	if endPtr == -1 {
