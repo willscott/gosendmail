@@ -89,8 +89,11 @@ func DialFromList(hosts []string, cfg *Config) (*smtp.Client, string) {
 	return nil, ""
 }
 
-func StartTLS(conn *smtp.Client, serverName string, cfg *Config) error {
+func StartTLS(conn *smtp.Client, serverName string, cfg *Config, allowSelfSigned bool) error {
 	tlsCfg := cfg.GetTLS()
 	tlsCfg.ServerName = serverName
+	if allowSelfSigned {
+		tlsCfg.InsecureSkipVerify = true
+	}
 	return conn.StartTLS(tlsCfg)
 }

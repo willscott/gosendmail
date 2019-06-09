@@ -15,6 +15,7 @@ func main() {
 	viper.AddConfigPath("$HOME/.gosendmail")
 	viper.AddConfigPath(".")
 	viper.SetDefault("tls", true)
+	viper.SetDefault("selfsigned", false)
 	viper.SetEnvPrefix("gosendmail")
 	viper.AutomaticEnv()
 	err := viper.ReadInConfig()
@@ -38,12 +39,12 @@ func main() {
 
 	for _, dest := range parsed.DestDomain {
 		log.Printf("Mail for %s:", dest)
-		SendTo(dest, &parsed, cfg, msg, viper.GetBool("tls"))
+		SendTo(dest, &parsed, cfg, msg, viper.GetBool("tls"), viper.GetBool("selfsigned"))
 		log.Printf(" Sent.\n")
 	}
 }
 
-func SendTo(dest string, parsed *lib.ParsedMessage, cfg *lib.Config, msg []byte, tls bool) {
+func SendTo(dest string, parsed *lib.ParsedMessage, cfg *lib.Config, msg []byte, tls bool, selfsigned bool) {
 	// enumerate possible mx IPs
 	hosts := lib.FindServers(dest, cfg)
 
@@ -55,7 +56,7 @@ func SendTo(dest string, parsed *lib.ParsedMessage, cfg *lib.Config, msg []byte,
 
 	// try ssl upgrade
 	if tls {
-		if err := lib.StartTLS(conn, hostname, cfg); err != nil {
+		if err := lib.StartTLS(conn, hostname, cfg, selfsigned); err != nil {
 			log.Fatalf("Errored @starttls: %v", err)
 		}
 	}
