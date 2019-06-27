@@ -50,3 +50,6 @@ Usage
 * `sendmail` copied to cloud server.
 * Modify `config.json` to point to relevant keys / domain.
 * set your local MTA sendmail endpoint to the local `signmail` binary.
+* Use the environmental variables `GOSENDMAIL_TLS` and `GOSENDMAIL_SELFSIGNED`
+  when insecure mail delivery is desirable. These variable will be read by
+  the sendmail binary, but can be reasonably simply propagated through SSH.

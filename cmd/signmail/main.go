@@ -34,7 +34,9 @@ func main() {
 
 	lib.SanitizeMessage(&msg, parsed, cfg)
 
-	lib.SignMessage(&msg, parsed, cfg)
+	if cfg.DkimKeyCmd != "" {
+		lib.SignMessage(&msg, parsed, cfg)
+	}
 
 	// send to remote server.
 	keycmd := strings.Split(cfg.SendCommand, " ")
