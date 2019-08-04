@@ -13,11 +13,11 @@ For single-user domains, realistic threat models are more likely to
 involve compromise of the publicly connected server, motivating a design
 minimizing trust in the front server.
 
-GoSendmail is an originating mail transfer agent for such a threat model.
+GoSendmail is an originating mail transfer agent for this threat model.
 
-It is designed as a counterpoint to e.g.
+It is designed as a counterpoint to
 [maildiranasaurus](https://github.com/flashmob/maildiranasaurus), which
-would receive mail on such semi-trusted server.
+receives email on a semi-trusted server.
 
 Features
 ---
@@ -37,19 +37,45 @@ gosendmail provides two binaries which together provide:
 
 `signmail` parses stdin for mail sent via a `mutt`-like program.
 It runs santization and dkim signing, and then passes the signed message
-to another process, routed based on the sending domain. This is
-meant to be an `ssh` wrapped `sendmail` binary.
+to another process, based on the sending domain. The sub-process
+interaction is designed to be interoperable with the semantics of
+`sendmail`. (e.g. the final email body is passed to stdin.)
 
-`sendmail` runs on the semi-trusted server, takes an already signed message,
-and manages the actual sending to remote servers.
+`sendmail` runs on a semi-trusted server, takes an already signed message,
+and performs the actual sending to remote MTSs.
 
 Usage
 ---
 
 * `go build ./cmd/sendmail ./cmd/signmail`
-* `sendmail` copied to cloud server.
-* Modify `config.json` to point to relevant keys / domain.
-* set your local MTA sendmail endpoint to the local `signmail` binary.
+* copy `sendmail` to your cloud server (or build it there).
+* Modify `config.json` for relevant keys and domain(s).
+* Configure Mutt or your MTA to send using the `signmail` binary.
 * Use the environmental variables `GOSENDMAIL_TLS` and `GOSENDMAIL_SELFSIGNED`
   when insecure mail delivery is desirable. These variable will be read by
-  the sendmail binary, but can be reasonably simply propagated through SSH.
+  the sendmail binary, a can be propagated through SSH.
+
+Configuration Options
+---
+
+Environmental Variables
+
+* `GOSENDMAIL_TLS` - set to a false-y ("false", "0") value to skip StartTLS
+* `GOSENDMAIL_SELFSIGNED` - set to a true value ("true", "1") to allow
+   TLS handshakes with servers that present invalid certificates.
+* `GOSENDMAIL_RECIPIENTS` - overrides the addresses the message will be sent
+   to. This helps support partial resumption of remaining recipients and BCC.
+   If not specified, recipients will be generated from the To, CC, and BCC fields.
+
+Configuration Options (signmail)
+
+* `DkimKeyCmd` The subprocess to execute to retrieve the bytes of the dkim signing key.
+* `DkimSelector` The DKIM selector, a part of the DKIM dns record. (default: 'default')
+* `SendCommand` The subprocess to use to send signed messages via the semi-trusted server.
+
+Configuration Options (sendmail)
+
+* `DialerProxy` A URL (e.g. `socks5://...`) that connections to remote MTAs will be
+   dialed through.
+* `TLSCert` The certificate file for the sender (client) to use for self authentication.
+* `TLSKey` The corresponding private key file for the sending client to use.

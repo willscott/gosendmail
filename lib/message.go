@@ -22,6 +22,21 @@ func splitAddress(email string) (account, host string) {
 	return
 }
 
+func joinAddresses(addresses []*mail.Address) string {
+	out := ""
+	for _, addr := range addresses {
+		if addr != nil {
+			if out != "" {
+				out = out + ", " + addr.String()
+			} else {
+				out = addr.String()
+			}
+		}
+	}
+	return out
+}
+
+// ReadMessage scans a given io.Reader into a []byte.
 func ReadMessage(reader io.Reader) []byte {
 	scanner := bufio.NewScanner(reader)
 	scanner.Split(bufio.ScanBytes)
@@ -35,6 +50,7 @@ func ReadMessage(reader io.Reader) []byte {
 	return mailMsg
 }
 
+// ParsedMessage represents a semi-structred email message.
 type ParsedMessage struct {
 	Sender       string
 	SourceDomain string
@@ -43,6 +59,8 @@ type ParsedMessage struct {
 	*mail.Message
 }
 
+// ParseMessage parses a byte array representating an email message
+// to learn the sender, and intended recipients.
 func ParseMessage(msg *[]byte) ParsedMessage {
 	m, err := mail.ReadMessage(bytes.NewReader(*msg))
 	if err != nil {
@@ -70,9 +88,29 @@ func ParseMessage(msg *[]byte) ParsedMessage {
 			addrs = append(addrs, dests...)
 		}
 	}
+	defaultReceipients := joinAddresses(addrs)
+
+	pm := ParsedMessage{
+		Sender:       sender.Address,
+		SourceDomain: fromHost,
+		Message:      m,
+	}
+
+	pm.SetRecipients(defaultReceipients)
+	return pm
+}
+
+// SetRecipients sets the accounts and corresponding domains to which
+// the email will be sent.
+func (pm *ParsedMessage) SetRecipients(recipients string) error {
+	ap := mail.AddressParser{}
+	dests, err := ap.ParseList(recipients)
+	if err != nil {
+		return err
+	}
 
 	rcpts := make(map[string][]string)
-	for _, addr := range addrs {
+	for _, addr := range dests {
 		_, toHost := splitAddress(addr.Address)
 		if _, ok := rcpts[toHost]; !ok {
 			rcpts[toHost] = make([]string, 0)
@@ -84,15 +122,28 @@ func ParseMessage(msg *[]byte) ParsedMessage {
 		hosts = append(hosts, k)
 	}
 
-	return ParsedMessage{
-		Sender:       sender.Address,
-		SourceDomain: fromHost,
-		Rcpt:         rcpts,
-		DestDomain:   hosts,
-		Message:      m,
-	}
+	pm.Rcpt = rcpts
+	pm.DestDomain = hosts
+	return nil
 }
 
+// Recipients gets a string formatted comma separated list of parsed recipients.
+func (pm *ParsedMessage) Recipients() string {
+	out := ""
+	for _, dom := range pm.Rcpt {
+		for _, addr := range dom {
+			if out != "" {
+				out = out + ", " + addr
+			} else {
+				out = addr
+			}
+		}
+	}
+	return out
+}
+
+// RemoveHeader strips a single header from a byte array representing a full email
+// message.
 func RemoveHeader(msg *[]byte, header string) {
 	// line endings.
 	if bytes.Index(*msg, []byte{13, 10, 13, 10}) < 0 {
@@ -123,6 +174,10 @@ func RemoveHeader(msg *[]byte, header string) {
 	*msg = out
 }
 
+// Santitize message takes a byte buffer of an Email message, along with configuration
+// for the sending domain, and uses these to transform the message into one that is
+// more privacy preserving - in particular by quantizing identifying dates and
+// message IDs. The byte buffer of the message is modified in-place.
 func SanitizeMessage(msg *[]byte, parsed ParsedMessage, cfg *Config) error {
 	// line endings.
 	if bytes.Index(*msg, []byte{13, 10, 13, 10}) < 0 {
@@ -150,8 +205,11 @@ func SanitizeMessage(msg *[]byte, parsed ParsedMessage, cfg *Config) error {
 	return nil
 }
 
+// SignMessage takes a message byte buffer, and adds a DKIM signature to it
+// based on the configuration of the sending domain. the buffer is modified
+// in place.
 func SignMessage(msg *[]byte, parsed ParsedMessage, cfg *Config) error {
-	// dkim sign
+	// Determine which subset of headers are included in the signature.
 	recommendedHeaders := []string{
 		"from", "sender", "reply-to", "subject", "date", "message-id", "to", "cc",
 		"mime-version", "content-type", "content-transfer-encoding", "content-id",
@@ -172,6 +230,7 @@ func SignMessage(msg *[]byte, parsed ParsedMessage, cfg *Config) error {
 		}
 	}
 
+	// Load the key for signing.
 	keycmd := strings.Split(cfg.DkimKeyCmd, " ")
 	pkey, err := exec.Command(keycmd[0], keycmd[1:]...).Output()
 	if err != nil {
@@ -183,6 +242,7 @@ func SignMessage(msg *[]byte, parsed ParsedMessage, cfg *Config) error {
 		selector = cfg.DkimSelector
 	}
 
+	// Sign.
 	options := dkim.NewSigOptions()
 	options.PrivateKey = pkey
 	options.Domain = parsed.SourceDomain

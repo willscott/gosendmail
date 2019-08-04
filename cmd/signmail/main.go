@@ -41,6 +41,8 @@ func main() {
 	// send to remote server.
 	keycmd := strings.Split(cfg.SendCommand, " ")
 	cmd := exec.Command(keycmd[0], keycmd[1:]...)
+	cmd.Env = append(os.Environ(),
+		"GOSENDMAIL_RECIPIENTS="+parsed.Recipients())
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		log.Fatal(err)

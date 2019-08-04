@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Config represents the structure of a single domain configuration
+// in config.json
 type Config struct {
 	DkimKeyCmd   string
 	DkimSelector string
@@ -17,6 +19,8 @@ type Config struct {
 	SendCommand  string
 }
 
+// GetTLS returns a TLS configuration (the epxected certificate and server name)
+// for a given configured domain.
 func (c *Config) GetTLS() *tls.Config {
 	if c.tlscfg != nil {
 		return c.tlscfg
@@ -34,6 +38,8 @@ func (c *Config) GetTLS() *tls.Config {
 	return c.tlscfg
 }
 
+// GetConfig looks for a domain in the currently loaded configuration
+// and attempts to parse it as into a Config struct.
 func GetConfig(domain string) *Config {
 	config := viper.Get(domain)
 	if config == nil {

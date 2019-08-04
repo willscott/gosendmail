@@ -32,7 +32,8 @@ func getDialer(cfg *Config) proxy.ContextDialer {
 	}
 }
 
-func FindServers(domain string, cfg *Config) []string {
+// FindServers resolves the IP addresses of a given destination `domain`
+func FindServers(domain string) []string {
 	resolver := net.Resolver{
 		PreferGo: true,
 	}
@@ -57,6 +58,8 @@ func FindServers(domain string, cfg *Config) []string {
 	}
 }
 
+// DialFromList tries dialing in order a list of IPs as if they are email servers until
+// exhausting possibilities.
 func DialFromList(hosts []string, cfg *Config) (*smtp.Client, string) {
 	dialer := getDialer(cfg)
 
@@ -89,6 +92,7 @@ func DialFromList(hosts []string, cfg *Config) (*smtp.Client, string) {
 	return nil, ""
 }
 
+// StartTLS attempts to upgrade an SMTP network connection with StartTLS.
 func StartTLS(conn *smtp.Client, serverName string, cfg *Config, allowSelfSigned bool) error {
 	tlsCfg := cfg.GetTLS()
 	tlsCfg.ServerName = serverName
