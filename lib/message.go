@@ -186,7 +186,7 @@ func SanitizeMessage(msg *[]byte, parsed ParsedMessage, cfg *Config) error {
 	}
 
 	// Remove potentially-revealing headers.
-	removedHeaders := []string{"Date", "Message-ID"}
+	removedHeaders := []string{"Date", "Message-ID", "BCC"}
 	for _, h := range removedHeaders {
 		RemoveHeader(msg, h)
 	}
