@@ -56,6 +56,7 @@ type ParsedMessage struct {
 	SourceDomain string
 	Rcpt         map[string][]string
 	DestDomain   []string
+	Bytes        *[]byte
 	*mail.Message
 }
 
@@ -94,6 +95,7 @@ func ParseMessage(msg *[]byte) ParsedMessage {
 		Sender:       sender.Address,
 		SourceDomain: fromHost,
 		Message:      m,
+		Bytes:        msg,
 	}
 
 	pm.SetRecipients(defaultReceipients)
@@ -178,29 +180,29 @@ func RemoveHeader(msg *[]byte, header string) {
 // for the sending domain, and uses these to transform the message into one that is
 // more privacy preserving - in particular by quantizing identifying dates and
 // message IDs. The byte buffer of the message is modified in-place.
-func SanitizeMessage(msg *[]byte, parsed ParsedMessage, cfg *Config) error {
+func SanitizeMessage(parsed ParsedMessage, cfg *Config) error {
 	// line endings.
-	if bytes.Index(*msg, []byte{13, 10, 13, 10}) < 0 {
+	if bytes.Index(*parsed.Bytes, []byte{13, 10, 13, 10}) < 0 {
 		// \n -> \r\n
-		*msg = bytes.Replace(*msg, []byte{10}, []byte{13, 10}, -1)
+		*parsed.Bytes = bytes.Replace(*parsed.Bytes, []byte{10}, []byte{13, 10}, -1)
 	}
 
 	// Remove potentially-revealing headers.
 	removedHeaders := []string{"Date", "Message-ID", "BCC"}
 	for _, h := range removedHeaders {
-		RemoveHeader(msg, h)
+		RemoveHeader(parsed.Bytes, h)
 	}
 
 	// set date
 	header := "Date: " + time.Now().Truncate(15*time.Minute).UTC().Format(time.RFC1123Z) + "\r\n"
-	*msg = append([]byte(header), *msg...)
+	*parsed.Bytes = append([]byte(header), *parsed.Bytes...)
 
 	// set message id
 	hasher := sha256.New()
 	io.Copy(hasher, parsed.Body)
 	hex := hex.EncodeToString(hasher.Sum(nil))
 	header = "Message-ID: <" + hex + "@" + parsed.SourceDomain + ">\r\n"
-	*msg = append([]byte(header), *msg...)
+	*parsed.Bytes = append([]byte(header), *parsed.Bytes...)
 
 	return nil
 }
@@ -208,7 +210,7 @@ func SanitizeMessage(msg *[]byte, parsed ParsedMessage, cfg *Config) error {
 // SignMessage takes a message byte buffer, and adds a DKIM signature to it
 // based on the configuration of the sending domain. the buffer is modified
 // in place.
-func SignMessage(msg *[]byte, parsed ParsedMessage, cfg *Config) error {
+func SignMessage(parsed ParsedMessage, cfg *Config) error {
 	// Determine which subset of headers are included in the signature.
 	recommendedHeaders := []string{
 		"from", "sender", "reply-to", "subject", "date", "message-id", "to", "cc",
@@ -252,9 +254,5 @@ func SignMessage(msg *[]byte, parsed ParsedMessage, cfg *Config) error {
 	options.AddSignatureTimestamp = false
 	options.Canonicalization = "relaxed/relaxed"
 
-	err = dkim.Sign(msg, options)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return nil
+	return dkim.Sign(parsed.Bytes, options)
 }
