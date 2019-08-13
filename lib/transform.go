@@ -2,9 +2,6 @@ package lib
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
-	"io"
 	"log"
 	"net/mail"
 	"os/exec"
@@ -68,10 +65,7 @@ func SanitizeMessage(parsed ParsedMessage, cfg *Config) error {
 	*parsed.Bytes = append([]byte(header), *parsed.Bytes...)
 
 	// set message id
-	hasher := sha256.New()
-	io.Copy(hasher, parsed.Body)
-	hex := hex.EncodeToString(hasher.Sum(nil))
-	header = "Message-ID: <" + hex + "@" + parsed.SourceDomain + ">\r\n"
+	header = "Message-ID: <" + parsed.Hash() + "@" + parsed.SourceDomain + ">\r\n"
 	*parsed.Bytes = append([]byte(header), *parsed.Bytes...)
 
 	// Reload the parsed Message from the sanitized version.

@@ -62,16 +62,26 @@ type ParsedMessage struct {
 	*mail.Message
 }
 
+// Hash provides an ideally stable handle for a message.
 func (p ParsedMessage) Hash() string {
 	hasher := sha256.New()
-	io.Copy(hasher, p.Body)
+
+	// We re-parse bytes here because `msg.Body` can only be read once.
+	m, err := mail.ReadMessage(bytes.NewReader(*p.Bytes))
+	if err != nil {
+		return ""
+	}
+
+	io.Copy(hasher, m.Body)
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
+// FileName provides a stable location on disk for the message to serialize to.
 func (p ParsedMessage) FileName() string {
 	return path.Join(path.Dir(viper.ConfigFileUsed()), p.Hash()+".eml")
 }
 
+// UnmarshalText attempts to load a message from a textual pointer of its state.
 func (p *ParsedMessage) UnmarshalText(b []byte) error {
 	// attempt loading file from hash.
 	hash := bytes.Index(b, []byte(" "))
@@ -97,6 +107,9 @@ func (p *ParsedMessage) UnmarshalText(b []byte) error {
 	return p.SetRecipients(string(b[hash+1:]))
 }
 
+// MarshalText provides a textual handle of the message. The message contents is
+// not included, and must be saved using `Save` for the marshal'ed handle to be
+// considered durable.
 func (p ParsedMessage) MarshalText() ([]byte, error) {
 	// line format: <hash> <rcpts>
 	return []byte(p.Hash() + " " + p.Recipients()), nil
@@ -185,7 +198,7 @@ func (pm *ParsedMessage) SetRecipients(recipients string) error {
 	return nil
 }
 
-// Recipients gets a string formatted comma separated list of parsed recipients.
+// Recipients gets a comma separated list (AddressList) of recipients.
 func (pm *ParsedMessage) Recipients() string {
 	out := ""
 	for _, dom := range pm.Rcpt {
@@ -200,6 +213,8 @@ func (pm *ParsedMessage) Recipients() string {
 	return out
 }
 
+// RecipientMap returns a map for identification of recipients,
+// where map keys are recipients and map values are `true`.
 func (pm *ParsedMessage) RecipientMap() map[string]bool {
 	out := make(map[string]bool, 0)
 	for _, dom := range pm.Rcpt {
@@ -210,6 +225,8 @@ func (pm *ParsedMessage) RecipientMap() map[string]bool {
 	return out
 }
 
+// RemoveRecipients updates the message.Recipients to no longer
+// include a set of addresses specified in AddressList format.
 func (pm *ParsedMessage) RemoveRecipients(other string) error {
 	rcptMap := pm.RecipientMap()
 
