@@ -65,7 +65,7 @@ Environmental Variables
    TLS handshakes with servers that present invalid certificates.
 * `GOSENDMAIL_RECIPIENTS` - overrides the addresses the message will be sent
    to. This helps support partial resumption of remaining recipients and BCC.
-   If not specified, recipients will be generated from the To, CC, and BCC fields.
+   If not specified, recipients will be loaded from the To, CC, and BCC fields.
 
 Configuration Options (signmail)
 

@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"bytes"
 	"encoding/json"
 	"io/ioutil"
 	"path"
@@ -13,11 +14,18 @@ type MessageCache []lib.ParsedMessage
 
 func (m *MessageCache) Save() error {
 	confPath := path.Join(path.Dir(viper.ConfigFileUsed()), "inflight.json")
-	bytes, err := json.Marshal(m)
+	for _, msg := range *m {
+		if err := msg.Save(); err != nil {
+			return err
+		}
+	}
+	b, err := json.Marshal(m)
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(confPath, bytes, 0600)
+	var out bytes.Buffer
+	json.Indent(&out, b, "", "  ")
+	return ioutil.WriteFile(confPath, out.Bytes(), 0600)
 }
 
 func LoadMessageCache() (MessageCache, error) {

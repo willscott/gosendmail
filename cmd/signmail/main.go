@@ -47,6 +47,10 @@ func main() {
 			if err != nil {
 				*newMC = append(*newMC, parsed)
 				log.Printf("Delivery failure: %v", err)
+			} else {
+				if err = parsed.Unlink(); err != nil {
+					log.Printf("Failed to remove cached message: %v", err)
+				}
 			}
 		}
 		err = newMC.Save()
@@ -122,6 +126,7 @@ func trySend(parsed lib.ParsedMessage) error {
 	}()
 
 	l, err := cmd.CombinedOutput()
+	lib.InterpretLog(string(l), &parsed)
 	if err != nil {
 		return fmt.Errorf("%s: %v\n", l, err)
 	}

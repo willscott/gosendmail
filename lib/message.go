@@ -5,14 +5,16 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/mail"
-	"os/exec"
+	"os"
+	"path"
 	"strings"
-	"time"
 
-	dkim "github.com/toorop/go-dkim"
+	"github.com/spf13/viper"
 )
 
 func splitAddress(email string) (account, host string) {
@@ -58,6 +60,60 @@ type ParsedMessage struct {
 	DestDomain   []string
 	Bytes        *[]byte
 	*mail.Message
+}
+
+func (p ParsedMessage) Hash() string {
+	hasher := sha256.New()
+	io.Copy(hasher, p.Body)
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func (p ParsedMessage) FileName() string {
+	return path.Join(path.Dir(viper.ConfigFileUsed()), p.Hash()+".eml")
+}
+
+func (p *ParsedMessage) UnmarshalText(b []byte) error {
+	// attempt loading file from hash.
+	hash := bytes.Index(b, []byte(" "))
+	if hash == -1 {
+		return errors.New("invalid cache line")
+	}
+	filename := path.Join(path.Dir(viper.ConfigFileUsed()), string(b[0:hash])+".eml")
+	file, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	dat, err := ioutil.ReadAll(file)
+	if err != nil {
+		return err
+	}
+	msg := ParseMessage(&dat)
+	p.Bytes = &dat
+	p.Sender = msg.Sender
+	p.SourceDomain = msg.SourceDomain
+	p.Message = msg.Message
+
+	// set recipients.
+	return p.SetRecipients(string(b[hash+1:]))
+}
+
+func (p ParsedMessage) MarshalText() ([]byte, error) {
+	// line format: <hash> <rcpts>
+	return []byte(p.Hash() + " " + p.Recipients()), nil
+}
+
+// Save message to disk.
+// TODO: support encryption of on-disk data.
+func (p *ParsedMessage) Save() error {
+	return ioutil.WriteFile(p.FileName(), *p.Bytes, 0600)
+}
+
+// Remove message data from disk if present.
+func (p *ParsedMessage) Unlink() error {
+	if _, err := os.Stat(p.FileName()); os.IsNotExist(err) {
+		return nil
+	}
+	return os.Remove(p.FileName())
 }
 
 // ParseMessage parses a byte array representating an email message
@@ -144,115 +200,32 @@ func (pm *ParsedMessage) Recipients() string {
 	return out
 }
 
-// RemoveHeader strips a single header from a byte array representing a full email
-// message.
-func RemoveHeader(msg *[]byte, header string) {
-	// line endings.
-	if bytes.Index(*msg, []byte{13, 10, 13, 10}) < 0 {
-		// \n -> \r\n
-		*msg = bytes.Replace(*msg, []byte{10}, []byte{13, 10}, -1)
-	}
-
-	startPtr := 0
-	endPtr := bytes.Index(*msg, []byte{13, 10, 13, 10})
-	if endPtr == -1 {
-		log.Fatal("couldn't locate end of headers.")
-	}
-	out := make([]byte, 0, len(*msg))
-	match := []byte(header + ":")
-	for startPtr < endPtr {
-		nextPtr := bytes.Index((*msg)[startPtr:], []byte{13, 10}) + 2
-		// headers keep going until a line that doesn't start with space/tab
-		for (*msg)[startPtr+nextPtr] == byte(' ') || (*msg)[startPtr+nextPtr] == byte('	') {
-			nextPtr = nextPtr + bytes.Index((*msg)[startPtr+nextPtr:], []byte{13, 10}) + 2
+func (pm *ParsedMessage) RecipientMap() map[string]bool {
+	out := make(map[string]bool, 0)
+	for _, dom := range pm.Rcpt {
+		for _, addr := range dom {
+			out[addr] = true
 		}
-
-		if !bytes.HasPrefix((*msg)[startPtr:], match) {
-			out = append(out, (*msg)[startPtr:startPtr+nextPtr]...)
-		}
-		startPtr += nextPtr
 	}
-	out = append(out, (*msg)[endPtr:]...)
-	*msg = out
+	return out
 }
 
-// Santitize message takes a byte buffer of an Email message, along with configuration
-// for the sending domain, and uses these to transform the message into one that is
-// more privacy preserving - in particular by quantizing identifying dates and
-// message IDs. The byte buffer of the message is modified in-place.
-func SanitizeMessage(parsed ParsedMessage, cfg *Config) error {
-	// line endings.
-	if bytes.Index(*parsed.Bytes, []byte{13, 10, 13, 10}) < 0 {
-		// \n -> \r\n
-		*parsed.Bytes = bytes.Replace(*parsed.Bytes, []byte{10}, []byte{13, 10}, -1)
-	}
+func (pm *ParsedMessage) RemoveRecipients(other string) error {
+	rcptMap := pm.RecipientMap()
 
-	// Remove potentially-revealing headers.
-	removedHeaders := []string{"Date", "Message-ID", "BCC"}
-	for _, h := range removedHeaders {
-		RemoveHeader(parsed.Bytes, h)
-	}
+	otherMsg := ParsedMessage{}
+	otherMsg.SetRecipients(other)
+	otherMap := otherMsg.RecipientMap()
+	out := ""
 
-	// set date
-	header := "Date: " + time.Now().Truncate(15*time.Minute).UTC().Format(time.RFC1123Z) + "\r\n"
-	*parsed.Bytes = append([]byte(header), *parsed.Bytes...)
-
-	// set message id
-	hasher := sha256.New()
-	io.Copy(hasher, parsed.Body)
-	hex := hex.EncodeToString(hasher.Sum(nil))
-	header = "Message-ID: <" + hex + "@" + parsed.SourceDomain + ">\r\n"
-	*parsed.Bytes = append([]byte(header), *parsed.Bytes...)
-
-	return nil
-}
-
-// SignMessage takes a message byte buffer, and adds a DKIM signature to it
-// based on the configuration of the sending domain. the buffer is modified
-// in place.
-func SignMessage(parsed ParsedMessage, cfg *Config) error {
-	// Determine which subset of headers are included in the signature.
-	recommendedHeaders := []string{
-		"from", "sender", "reply-to", "subject", "date", "message-id", "to", "cc",
-		"mime-version", "content-type", "content-transfer-encoding", "content-id",
-		"content-description", "resent-date", "resent-from", "resent-sender", "resent-to",
-		"resent-cc", "resent-message-id", "in-reply-to", "references", "list-id", "list-help",
-		"list-unsubscribe", "list-subscribe", "list-post", "list-owner", "list-archive"}
-	recommendedSet := make(map[string]struct{}, len(recommendedHeaders))
-	for _, s := range recommendedHeaders {
-		recommendedSet[s] = struct{}{}
-	}
-	filteredHeaders := make([]string, 0)
-	for h, v := range parsed.Message.Header {
-		hl := strings.ToLower(h)
-		if _, ok := recommendedSet[hl]; ok {
-			for i := 0; i < len(v); i++ {
-				filteredHeaders = append(filteredHeaders, hl)
+	for rcpt, _ := range rcptMap {
+		if _, ok := otherMap[rcpt]; !ok {
+			if out != "" {
+				out = out + ", " + rcpt
+			} else {
+				out = rcpt
 			}
 		}
 	}
-
-	// Load the key for signing.
-	keycmd := strings.Split(cfg.DkimKeyCmd, " ")
-	pkey, err := exec.Command(keycmd[0], keycmd[1:]...).Output()
-	if err != nil {
-		log.Fatalf("Could not retreive DKIM key: %v\n", err)
-	}
-
-	selector := "default"
-	if cfg.DkimSelector != "" {
-		selector = cfg.DkimSelector
-	}
-
-	// Sign.
-	options := dkim.NewSigOptions()
-	options.PrivateKey = pkey
-	options.Domain = parsed.SourceDomain
-	options.Selector = selector
-	options.SignatureExpireIn = 0
-	options.Headers = filteredHeaders
-	options.AddSignatureTimestamp = false
-	options.Canonicalization = "relaxed/relaxed"
-
-	return dkim.Sign(parsed.Bytes, options)
+	return pm.SetRecipients(out)
 }

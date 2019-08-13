@@ -10,6 +10,15 @@ import (
 	"github.com/willscott/gosendmail/lib"
 )
 
+// Sendmail negotiates a series of SMTP connections with remote servers
+// to deliver a message sent on stdin. It is stateless.
+//
+// The output (log.Fatalf / log.Printf) from this process are parsed
+// by lib/log.go in the signmail commanding process.
+// The expected convention is that lines follow one of three formats:
+// * "Info: " - ignored
+// * "Delivered: <recipients>" - indication of successful delivery
+// * "Fatal: " - indication that an error occured
 func main() {
 	// get config
 	viper.AddConfigPath("$HOME/.gosendmail")
@@ -30,12 +39,9 @@ func main() {
 	// Parse msg
 	parsed := lib.ParseMessage(&msg)
 
-	// remove bcc
-	//lib.RemoveHeader(&msg, "BCC")
-
 	cfg := lib.GetConfig(parsed.SourceDomain)
 	if cfg == nil {
-		log.Fatalf("No configuration for sender %s", parsed.SourceDomain)
+		log.Fatalf("Fatal: No configuration for sender %s\n", parsed.SourceDomain)
 	}
 
 	rcptOverride := viper.GetString("recipients")
@@ -44,10 +50,10 @@ func main() {
 	}
 
 	for _, dest := range parsed.DestDomain {
-		log.Printf("Mail for %s:", dest)
+		log.Printf("Info: connecting to %s\n", dest)
 		SendTo(dest, &parsed, cfg, msg, viper.GetBool("tls"), viper.GetBool("selfsigned"))
-		log.Printf(" Sent.\n")
 	}
+	log.Printf("Info: finished\n")
 }
 
 func SendTo(dest string, parsed *lib.ParsedMessage, cfg *lib.Config, msg []byte, tls bool, selfSigned bool) {
@@ -57,44 +63,48 @@ func SendTo(dest string, parsed *lib.ParsedMessage, cfg *lib.Config, msg []byte,
 	// open connection
 	conn, hostname := lib.DialFromList(hosts, cfg)
 	if err := conn.Hello(parsed.SourceDomain); err != nil {
-		log.Fatalf("Errored @hello: %v", err)
+		log.Fatalf("Fatal: negotiating hello with %s: %v", hostname, err)
 	}
 
 	// try ssl upgrade
 	if tls {
 		if err := lib.StartTLS(conn, hostname, cfg, selfSigned); err != nil {
-			log.Fatalf("Errored @starttls: %v", err)
+			log.Fatalf("Fatal: negotiating starttls with %s: %v", hostname, err)
 		}
 	}
 
 	// send email
 	if err := conn.Mail(parsed.Sender); err != nil {
-		log.Fatalf("Errored @mailfrom: %v", err)
+		log.Fatalf("Fatal: setting mailfrom: %v\n", err)
 	}
 
+	rcpts := ""
 	for _, rcpt := range parsed.Rcpt[dest] {
 		if err := conn.Rcpt(rcpt); err != nil {
-			log.Fatalf("Errored @rcptto: %v", err)
+			log.Fatalf("Fatal: setting rcpt %s: %v\n", rcpt, err)
 		}
+		if rcpts != "" {
+			rcpts = rcpts + ", "
+		}
+		rcpts = rcpts + rcpt
 	}
 
 	// Send the email body.
 	wc, err := conn.Data()
 	if err != nil {
-		log.Fatalf("Errored @data: %v", err)
+		log.Fatalf("Fatal: sending data: %v\n", err)
 	}
 
 	if _, err := io.Copy(wc, bytes.NewReader(msg)); err != nil {
-		log.Fatalf("Errored sending: %v", err)
+		log.Fatalf("Fatal: copying bytes of body: %v\n", err)
 	}
 	err = wc.Close()
 	if err != nil {
-		log.Fatalf("Errored closing send: %v", err)
+		log.Fatalf("Fatal: concluding data: %v\n", err)
 	}
 
+	log.Printf("Delivered: %s\n", rcpts)
+
 	// Send the QUIT command and close the connection.
-	err = conn.Quit()
-	if err != nil {
-		log.Fatalf("Errored @quit: %v", err)
-	}
+	conn.Quit()
 }
