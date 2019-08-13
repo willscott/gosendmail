@@ -15,5 +15,5 @@ action "gobuild" {
   uses = "cedrickring/golang-action@1.3.0"
   needs = "gofmt"
   # optional build command:
-  args = "go get ./... && go build ./cmd/signmail ./cmd/sendmail"
+  args = "go get ./... && go test ./... && go build ./cmd/signmail ./cmd/sendmail"
 }
