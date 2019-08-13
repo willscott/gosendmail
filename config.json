@@ -1,7 +1,15 @@
 {
-  "example.com": {
+  "WriteToDisk": "cat",
+  "ReadFromDisk": "cat",
+
+  "insecure.com": {
     "DkimKeyCmd": "cat example.pem",
     "DkimSelector": "default",
     "SendCommand": "gosendmail"
+  },
+  "secure.com": {
+    "DkimKeyCmd": "gpg example.pem",
+    "DkimSelector": "default",
+    "SendCommand": "ssh myserver gosendmail"
   }
 }

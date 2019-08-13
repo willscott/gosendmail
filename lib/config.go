@@ -1,8 +1,13 @@
 package lib
 
 import (
+	"bytes"
 	"crypto/tls"
+	"io/ioutil"
 	"log"
+	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -77,4 +82,49 @@ func GetConfig(domain string) *Config {
 	}
 
 	return &cfg
+}
+
+func ParseDiskInput(filename string) ([]byte, error) {
+	cfg := viper.Get("ReadFromDisk")
+	if cfg == nil {
+		return ioutil.ReadFile(filename)
+	}
+
+	readCmdLine, ok := cfg.(string)
+	if !ok {
+		return ioutil.ReadFile(filename)
+	}
+
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	readCmdArgs := strings.Split(readCmdLine, " ")
+	readCmd := exec.Command(readCmdArgs[0], readCmdArgs[1:]...)
+	readCmd.Stdin = file
+	return readCmd.Output()
+}
+
+func WriteDiskOutput(filename string, data []byte) error {
+	cfg := viper.Get("WriteToDisk")
+	if cfg == nil {
+		return ioutil.WriteFile(filename, data, 0600)
+	}
+
+	writeCmdLine, ok := cfg.(string)
+	if !ok {
+		return ioutil.WriteFile(filename, data, 0600)
+	}
+
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+
+	writeCmdArgs := strings.Split(writeCmdLine, " ")
+	writeCmd := exec.Command(writeCmdArgs[0], writeCmdArgs[1:]...)
+	writeCmd.Stdin = bytes.NewReader(data)
+	writeCmd.Stdout = file
+	return writeCmd.Run()
 }

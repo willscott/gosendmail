@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/mail"
 	"os"
@@ -89,14 +88,12 @@ func (p *ParsedMessage) UnmarshalText(b []byte) error {
 		return errors.New("invalid cache line")
 	}
 	filename := path.Join(path.Dir(viper.ConfigFileUsed()), string(b[0:hash])+".eml")
-	file, err := os.Open(filename)
+
+	dat, err := ParseDiskInput(filename)
 	if err != nil {
 		return err
 	}
-	dat, err := ioutil.ReadAll(file)
-	if err != nil {
-		return err
-	}
+
 	msg := ParseMessage(&dat)
 	p.Bytes = &dat
 	p.Sender = msg.Sender
@@ -118,7 +115,7 @@ func (p ParsedMessage) MarshalText() ([]byte, error) {
 // Save message to disk.
 // TODO: support encryption of on-disk data.
 func (p *ParsedMessage) Save() error {
-	return ioutil.WriteFile(p.FileName(), *p.Bytes, 0600)
+	return WriteDiskOutput(p.FileName(), *p.Bytes)
 }
 
 // Remove message data from disk if present.
