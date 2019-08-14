@@ -84,6 +84,9 @@ func GetConfig(domain string) *Config {
 	return &cfg
 }
 
+// ParseDiskInput reads a filename, transforming the data with a configured
+// 'ReadFromDisk' command if set. This allows messages to be passed through
+// a gpg encryption process if desired.
 func ParseDiskInput(filename string) ([]byte, error) {
 	cfg := viper.Get("ReadFromDisk")
 	if cfg == nil {
@@ -106,6 +109,9 @@ func ParseDiskInput(filename string) ([]byte, error) {
 	return readCmd.Output()
 }
 
+// WriteDiskOutput writes a bytestring to a desired file on disk, transforming
+// the data through a configured `WriteToDisk` command if set. This allows
+// messages to be passed through a gpg encryption process if desired.
 func WriteDiskOutput(filename string, data []byte) error {
 	cfg := viper.Get("WriteToDisk")
 	if cfg == nil {
