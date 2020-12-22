@@ -43,7 +43,7 @@ func RemoveHeader(msg *[]byte, header string) {
 	*msg = out
 }
 
-// Santitize message takes a byte buffer of an Email message, along with configuration
+// SanitizeMessage takes a byte buffer of an Email message, along with configuration
 // for the sending domain, and uses these to transform the message into one that is
 // more privacy preserving - in particular by quantizing identifying dates and
 // message IDs. The byte buffer of the message is modified in-place.

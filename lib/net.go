@@ -27,9 +27,8 @@ func getDialer(cfg *Config) proxy.ContextDialer {
 			log.Fatal("Parsed Proxy doesn't support context")
 		}
 		return p
-	} else {
-		return &net.Dialer{}
 	}
+	return &net.Dialer{}
 }
 
 // FindServers resolves the IP addresses of a given destination `domain`
@@ -52,10 +51,9 @@ func FindServers(domain string) []string {
 			hosts[i] = mx.Host
 		}
 		return hosts
-	} else {
-		// fall back to a record.
-		return []string{domain}
 	}
+	// fall back to a record.
+	return []string{domain}
 }
 
 // DialFromList tries dialing in order a list of IPs as if they are email servers until

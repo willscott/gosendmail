@@ -118,7 +118,7 @@ func (p *ParsedMessage) Save() error {
 	return WriteDiskOutput(p.FileName(), *p.Bytes)
 }
 
-// Remove message data from disk if present.
+// Unlink message data from disk if present.
 func (p *ParsedMessage) Unlink() error {
 	if _, err := os.Stat(p.FileName()); os.IsNotExist(err) {
 		return nil
@@ -168,9 +168,17 @@ func ParseMessage(msg *[]byte) ParsedMessage {
 	return pm
 }
 
+// SetSender specifies an explicit sending email account for the message.
+func (p *ParsedMessage) SetSender(sender string) error {
+	_, fromHost := splitAddress(sender)
+	p.Sender = sender
+	p.SourceDomain = fromHost
+	return nil
+}
+
 // SetRecipients sets the accounts and corresponding domains to which
 // the email will be sent.
-func (pm *ParsedMessage) SetRecipients(recipients string) error {
+func (p *ParsedMessage) SetRecipients(recipients string) error {
 	ap := mail.AddressParser{}
 	dests, err := ap.ParseList(recipients)
 	if err != nil {
@@ -190,15 +198,15 @@ func (pm *ParsedMessage) SetRecipients(recipients string) error {
 		hosts = append(hosts, k)
 	}
 
-	pm.Rcpt = rcpts
-	pm.DestDomain = hosts
+	p.Rcpt = rcpts
+	p.DestDomain = hosts
 	return nil
 }
 
 // Recipients gets a comma separated list (AddressList) of recipients.
-func (pm *ParsedMessage) Recipients() string {
+func (p *ParsedMessage) Recipients() string {
 	out := ""
-	for _, dom := range pm.Rcpt {
+	for _, dom := range p.Rcpt {
 		for _, addr := range dom {
 			if out != "" {
 				out = out + ", " + addr
@@ -212,9 +220,9 @@ func (pm *ParsedMessage) Recipients() string {
 
 // RecipientMap returns a map for identification of recipients,
 // where map keys are recipients and map values are `true`.
-func (pm *ParsedMessage) RecipientMap() map[string]bool {
+func (p *ParsedMessage) RecipientMap() map[string]bool {
 	out := make(map[string]bool, 0)
-	for _, dom := range pm.Rcpt {
+	for _, dom := range p.Rcpt {
 		for _, addr := range dom {
 			out[addr] = true
 		}
@@ -224,15 +232,15 @@ func (pm *ParsedMessage) RecipientMap() map[string]bool {
 
 // RemoveRecipients updates the message.Recipients to no longer
 // include a set of addresses specified in AddressList format.
-func (pm *ParsedMessage) RemoveRecipients(other string) error {
-	rcptMap := pm.RecipientMap()
+func (p *ParsedMessage) RemoveRecipients(other string) error {
+	rcptMap := p.RecipientMap()
 
 	otherMsg := ParsedMessage{}
 	otherMsg.SetRecipients(other)
 	otherMap := otherMsg.RecipientMap()
 	out := ""
 
-	for rcpt, _ := range rcptMap {
+	for rcpt := range rcptMap {
 		if _, ok := otherMap[rcpt]; !ok {
 			if out != "" {
 				out = out + ", " + rcpt
@@ -241,5 +249,5 @@ func (pm *ParsedMessage) RemoveRecipients(other string) error {
 			}
 		}
 	}
-	return pm.SetRecipients(out)
+	return p.SetRecipients(out)
 }

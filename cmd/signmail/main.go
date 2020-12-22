@@ -17,10 +17,12 @@ import (
 
 var queue bool
 var queueResume bool
+var explicitFrom string
 
 func init() {
 	flag.CommandLine.BoolVarP(&queue, "queue", "s", false, "Store message to queue if not sent successfully")
 	flag.CommandLine.BoolVarP(&queueResume, "resume", "r", false, "Attempt delivery of queued messages")
+	flag.CommandLine.StringVarP(&explicitFrom, "from", "f", "", "Use explicit sender separate from the address parsed in the msg")
 }
 
 func main() {
@@ -63,8 +65,13 @@ func main() {
 
 		// Parse msg
 		parsed := lib.ParseMessage(&msg)
+		if len(explicitFrom) > 0 {
+			if err = parsed.SetSender(explicitFrom); err != nil {
+				log.Fatalf("Failed to prepare message: %v", err)
+			}
+		}
 		if err = prepareMessage(parsed); err != nil {
-			log.Fatalf("Failed to preapre message: %v", err)
+			log.Fatalf("Failed to prepare message: %v", err)
 		}
 
 		err := trySend(parsed)
@@ -128,7 +135,7 @@ func trySend(parsed lib.ParsedMessage) error {
 	l, err := cmd.CombinedOutput()
 	lib.InterpretLog(string(l), &parsed)
 	if err != nil {
-		return fmt.Errorf("%s: %v\n", l, err)
+		return fmt.Errorf("%s: %v", l, err)
 	}
 	return nil
 }
