@@ -15,14 +15,10 @@ import (
 	"github.com/willscott/gosendmail/lib"
 )
 
-var queue bool
-var queueResume bool
-var explicitFrom string
-
 func init() {
-	flag.CommandLine.BoolVarP(&queue, "queue", "s", false, "Store message to queue if not sent successfully")
-	flag.CommandLine.BoolVarP(&queueResume, "resume", "r", false, "Attempt delivery of queued messages")
-	flag.CommandLine.StringVarP(&explicitFrom, "from", "f", "", "Use explicit sender separate from the address parsed in the msg")
+	flag.CommandLine.BoolP("queue", "s", false, "Store message to queue if not sent successfully")
+	flag.CommandLine.BoolP("resume", "r", false, "Attempt delivery of queued messages")
+	flag.CommandLine.StringP("from", "f", "", "Use explicit sender separate from the address parsed in the msg")
 }
 
 func main() {
@@ -33,12 +29,19 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	viper.SetEnvPrefix("gosendmail")
+	viper.AutomaticEnv()
 	if flag.CommandLine.Parse(os.Args[1:]) != nil {
 		flag.CommandLine.Usage()
 		return
 	}
+	if err := viper.BindPFlags(flag.CommandLine); err != nil {
+		log.Fatal(err)
+	}
+	explicitFrom := viper.GetString("from")
+	fmt.Printf("resume is: %t\n", viper.GetBool("resume"))
 
-	if queueResume {
+	if viper.GetBool("resume") {
 		mc, err := cache.LoadMessageCache()
 		if err != nil {
 			log.Fatalf("Failed to load queue: %v", err)
@@ -76,7 +79,7 @@ func main() {
 
 		err := trySend(parsed)
 		if err != nil {
-			if queue {
+			if viper.GetBool("queue") {
 				log.Printf("Failed to send message: %v", err)
 				mc, err := cache.LoadMessageCache()
 				if err != nil {
