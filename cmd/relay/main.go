@@ -71,7 +71,7 @@ func init() {
 // should be forwarded out to an external collector / MTA
 func main() {
 	// get config
-	viper.AddConfigPath("$HOME/.gosendmail")
+	viper.AddConfigPath("$HOME/.gosendmailrelay")
 	viper.AddConfigPath(".")
 	viper.SetDefault("tls", true)
 	viper.SetDefault("selfsigned", false)
@@ -85,11 +85,12 @@ func main() {
 
 	// start up the server.
 	d = guerrilla.Daemon{Logger: mainlog}
+	d.AddProcessor("Relay", Processor)
+
 	cf := viper.GetViper().ConfigFileUsed()
 	if _, err := d.LoadConfig(cf); err != nil {
 		mainlog.Fatal(err)
 	}
-	d.AddProcessor("Relay", Processor)
 	if err != nil {
 		mainlog.WithError(err).Fatal("Error while reading config")
 	}
@@ -142,9 +143,15 @@ func handler(rawMsg io.Reader) {
 	if cfg == nil {
 		mainlog.Fatalf("Fatal: No configuration for sender %s\n", parsed.SourceDomain)
 	}
+	if cfg.DkimKeyCmd != "" {
+		if err := lib.SignMessage(parsed, cfg); err != nil {
+			mainlog.Fatalf("Fatal: failed to sign %s\n", err)
+		}
+	}
 
 	rcptOverride := viper.GetString("recipients")
 	if rcptOverride != "" {
+		mainlog.Printf("Over-riding recipients to %s", rcptOverride)
 		parsed.SetRecipients(rcptOverride)
 	}
 
