@@ -3,7 +3,6 @@ package cache
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path"
 
@@ -29,7 +28,7 @@ func (m *MessageCache) Save() error {
 	}
 	var out bytes.Buffer
 	json.Indent(&out, b, "", "  ")
-	return ioutil.WriteFile(confPath, out.Bytes(), 0600)
+	return os.WriteFile(confPath, out.Bytes(), 0600)
 }
 
 // Unlink deletes the message cache from disk
@@ -45,7 +44,7 @@ func (m *MessageCache) Unlink() error {
 // disk location.
 func LoadMessageCache() (MessageCache, error) {
 	confPath := path.Join(path.Dir(viper.ConfigFileUsed()), "inflight.json")
-	bytes, err := ioutil.ReadFile(confPath)
+	bytes, err := os.ReadFile(confPath)
 	if err != nil {
 		return nil, err
 	}

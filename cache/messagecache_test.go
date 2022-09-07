@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
@@ -11,13 +10,13 @@ import (
 )
 
 func TestMessageCache(t *testing.T) {
-	content, err := ioutil.ReadFile("../lib/testdata/test.eml")
+	content, err := os.ReadFile("../lib/testdata/test.eml")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Store serialization in a temporary directory.
-	viper.SetConfigFile(os.TempDir())
+	viper.SetConfigFile(t.TempDir())
 
 	msg := lib.ParseMessage(&content)
 
