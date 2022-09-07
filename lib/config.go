@@ -3,7 +3,6 @@ package lib
 import (
 	"bytes"
 	"crypto/tls"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -90,12 +89,12 @@ func GetConfig(domain string) *Config {
 func ParseDiskInput(filename string) ([]byte, error) {
 	cfg := viper.Get("ReadFromDisk")
 	if cfg == nil {
-		return ioutil.ReadFile(filename)
+		return os.ReadFile(filename)
 	}
 
 	readCmdLine, ok := cfg.(string)
 	if !ok {
-		return ioutil.ReadFile(filename)
+		return os.ReadFile(filename)
 	}
 
 	file, err := os.Open(filename)
@@ -115,12 +114,12 @@ func ParseDiskInput(filename string) ([]byte, error) {
 func WriteDiskOutput(filename string, data []byte) error {
 	cfg := viper.Get("WriteToDisk")
 	if cfg == nil {
-		return ioutil.WriteFile(filename, data, 0600)
+		return os.WriteFile(filename, data, 0600)
 	}
 
 	writeCmdLine, ok := cfg.(string)
 	if !ok {
-		return ioutil.WriteFile(filename, data, 0600)
+		return os.WriteFile(filename, data, 0600)
 	}
 
 	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0600)

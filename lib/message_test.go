@@ -1,7 +1,6 @@
 package lib
 
 import (
-	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
@@ -38,13 +37,13 @@ func TestRecipients(t *testing.T) {
 }
 
 func TestSerialize(t *testing.T) {
-	content, err := ioutil.ReadFile("testdata/test.eml")
+	content, err := os.ReadFile("testdata/test.eml")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Store serialization in a temporary directory.
-	viper.SetConfigFile(os.TempDir())
+	viper.SetConfigFile(t.TempDir())
 
 	msg := ParseMessage(&content)
 	if err = msg.Save(); err != nil {

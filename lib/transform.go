@@ -15,7 +15,7 @@ import (
 // message.
 func RemoveHeader(msg *[]byte, header string) {
 	// line endings.
-	if bytes.Index(*msg, []byte{13, 10, 13, 10}) < 0 {
+	if !bytes.Contains(*msg, []byte{13, 10, 13, 10}) {
 		// \n -> \r\n
 		*msg = bytes.Replace(*msg, []byte{10}, []byte{13, 10}, -1)
 	}
@@ -49,7 +49,7 @@ func RemoveHeader(msg *[]byte, header string) {
 // message IDs. The byte buffer of the message is modified in-place.
 func SanitizeMessage(parsed ParsedMessage, cfg *Config) error {
 	// line endings.
-	if bytes.Index(*parsed.Bytes, []byte{13, 10, 13, 10}) < 0 {
+	if !bytes.Contains(*parsed.Bytes, []byte{13, 10, 13, 10}) {
 		// \n -> \r\n
 		*parsed.Bytes = bytes.Replace(*parsed.Bytes, []byte{10}, []byte{13, 10}, -1)
 	}
