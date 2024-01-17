@@ -17,6 +17,7 @@ type Config struct {
 	DkimKeyCmd   string
 	DkimSelector string
 	DialerProxy  string
+	SourceHost   string
 	TLSCert      string
 	TLSKey       string
 	tlscfg       *tls.Config
@@ -78,6 +79,9 @@ func GetConfig(domain string) *Config {
 	}
 	if key, ok := cfgMap["tlskey"].(string); ok {
 		cfg.TLSKey = key
+	}
+	if sourceHost, ok := cfgMap["sourcehost"].(string); ok {
+		cfg.SourceHost = sourceHost
 	}
 
 	return &cfg

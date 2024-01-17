@@ -62,7 +62,11 @@ func SendTo(dest string, parsed *lib.ParsedMessage, cfg *lib.Config, msg []byte,
 
 	// open connection
 	conn, hostname := lib.DialFromList(hosts, cfg)
-	if err := conn.Hello(parsed.SourceDomain); err != nil {
+	helloSrc := parsed.SourceDomain
+	if len(cfg.SourceHost) > 0 {
+		helloSrc = cfg.SourceHost
+	}
+	if err := conn.Hello(helloSrc); err != nil {
 		log.Fatalf("Fatal: negotiating hello with %s: %v", hostname, err)
 	}
 
