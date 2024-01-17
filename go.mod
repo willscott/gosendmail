@@ -5,7 +5,7 @@ go 1.21.0
 require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.18.2
-	github.com/willscott/go-dkim v0.0.0-20240117162907-7ada29704d1a
+	github.com/willscott/go-dkim v0.0.0-20240117163537-77cb5174ba32
 	golang.org/x/net v0.20.0
 )
 
