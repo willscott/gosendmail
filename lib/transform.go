@@ -120,7 +120,12 @@ func SignMessage(parsed ParsedMessage, cfg *Config) error {
 	}
 	pk, err := x509.ParsePKCS8PrivateKey(kb.Bytes)
 	if err != nil {
-		log.Fatalf("Could not parse DKIM key: %v\n", err)
+		rpk, err := x509.ParsePKCS1PrivateKey(kb.Bytes)
+		if err == nil {
+			pk = rpk
+		} else {
+			log.Fatalf("Could not parse DKIM key: %v\n", err)
+		}
 	}
 	algo := "rsa-sha256"
 	if _, ok := pk.(*rsa.PrivateKey); !ok {
