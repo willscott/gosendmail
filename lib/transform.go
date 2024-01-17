@@ -2,13 +2,16 @@ package lib
 
 import (
 	"bytes"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"log"
 	"net/mail"
 	"os/exec"
 	"strings"
 	"time"
 
-	dkim "github.com/toorop/go-dkim"
+	dkim "github.com/willscott/go-dkim"
 )
 
 // RemoveHeader strips a single header from a byte array representing a full email
@@ -110,6 +113,20 @@ func SignMessage(parsed ParsedMessage, cfg *Config) error {
 		log.Fatalf("Could not retreive DKIM key: %v\n", err)
 	}
 
+	// figure out what type of key it is
+	kb, _ := pem.Decode(pkey)
+	if kb == nil {
+		log.Fatal("Could not decode DKIM key")
+	}
+	pk, err := x509.ParsePKCS8PrivateKey(kb.Bytes)
+	if err != nil {
+		log.Fatalf("Could not parse DKIM key: %v\n", err)
+	}
+	algo := "rsa-sha256"
+	if _, ok := pk.(*rsa.PrivateKey); !ok {
+		algo = "ed25519-sha256"
+	}
+
 	selector := "default"
 	if cfg.DkimSelector != "" {
 		selector = cfg.DkimSelector
@@ -117,6 +134,7 @@ func SignMessage(parsed ParsedMessage, cfg *Config) error {
 
 	// Sign.
 	options := dkim.NewSigOptions()
+	options.Algo = algo
 	options.PrivateKey = pkey
 	options.Domain = parsed.SourceDomain
 	options.Selector = selector

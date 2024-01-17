@@ -79,3 +79,13 @@ Configuration Options (sendmail)
    dialed through.
 * `TLSCert` The certificate file for the sender (client) to use for self authentication.
 * `TLSKey` The corresponding private key file for the sending client to use.
+
+DKIM setup
+---
+
+```
+openssl genpkey -algorithm ed25519 -out domain.dkim.pem
+openssl pkey -in domain.dkim.pem -pubout -out domain.dkim.pub
+P=openssl asn1parse -in domain.dkim.pub -offset 12 -noout -out /dev/stdout | openssl base64
+```
+then the record is `v=DKIM1; k=ed25519; p=$P`

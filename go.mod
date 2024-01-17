@@ -1,17 +1,16 @@
 module github.com/willscott/gosendmail
 
-go 1.20
+go 1.21.0
 
 require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.18.2
-	github.com/toorop/go-dkim v0.0.0-20240103092955-90b7d1423f92
+	github.com/willscott/go-dkim v0.0.0-20240117162907-7ada29704d1a
 	golang.org/x/net v0.20.0
 )
 
 require (
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
-	github.com/go-test/deep v1.1.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
