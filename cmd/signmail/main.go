@@ -39,6 +39,7 @@ func main() {
 		log.Fatal(err)
 	}
 	explicitFrom := viper.GetString("from")
+	explicitTo := viper.GetString("recipients")
 	fmt.Printf("resume is: %t\n", viper.GetBool("resume"))
 
 	if viper.GetBool("resume") {
@@ -73,6 +74,11 @@ func main() {
 				log.Fatalf("Failed to prepare message: %v", err)
 			}
 		}
+		if len(explicitTo) > 0 {
+			if err = parsed.SetRecipients(explicitTo); err != nil {
+				log.Fatalf("Failed to prepare message: %v", err)
+			}
+		}
 		if err = prepareMessage(parsed); err != nil {
 			log.Fatalf("Failed to prepare message: %v", err)
 		}
@@ -99,7 +105,7 @@ func main() {
 func prepareMessage(parsed lib.ParsedMessage) error {
 	cfg := lib.GetConfig(parsed.SourceDomain)
 	if cfg == nil {
-		return fmt.Errorf("No configuration for sender %s", parsed.SourceDomain)
+		return fmt.Errorf("no configuration for sender %s", parsed.SourceDomain)
 	}
 
 	if err := lib.SanitizeMessage(parsed, cfg); err != nil {
@@ -117,7 +123,7 @@ func prepareMessage(parsed lib.ParsedMessage) error {
 func trySend(parsed lib.ParsedMessage) error {
 	cfg := lib.GetConfig(parsed.SourceDomain)
 	if cfg == nil {
-		return fmt.Errorf("No configuration for sender %s", parsed.SourceDomain)
+		return fmt.Errorf("no configuration for sender %s", parsed.SourceDomain)
 	}
 
 	// send to remote server.
