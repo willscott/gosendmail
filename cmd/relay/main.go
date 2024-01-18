@@ -169,7 +169,7 @@ var Processor = func() backends.Decorator {
 					}
 				}
 				child.Env = []string{"GOSENDMAIL_FROM=" + e.MailFrom.String(), "GOSENDMAIL_RECIPIENTS=" + destList}
-				out, err := child.Output()
+				out, err := child.CombinedOutput()
 				if err != nil {
 					mainlog.WithError(fmt.Errorf("sendmail err %w: %s", err, out)).Errorf("Failed to send mail")
 					return backends.NewResult("550 5.7.1 Failed to send mail", 550), nil
