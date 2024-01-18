@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -15,6 +16,7 @@ import (
 	"github.com/flashmob/go-guerrilla/backends"
 	"github.com/flashmob/go-guerrilla/log"
 	"github.com/flashmob/go-guerrilla/mail"
+	"github.com/flashmob/go-guerrilla/response"
 	"github.com/kballard/go-shellquote"
 
 	"github.com/3th1nk/cidr"
@@ -127,11 +129,13 @@ var Auth = func() backends.Decorator {
 		}
 
 		return backends.ProcessWith(func(e *mail.Envelope, task backends.SelectTask) (backends.Result, error) {
-			if task == backends.TaskValidateRcpt {
-				remote := e.RemoteIP
-				if !allowNet.Contains(remote) {
-					mainlog.Infof("Rejecting message from %s\n", remote)
-					return backends.NewResult(fmt.Sprintf("550 5.7.1 %s is not allowed to send mail", remote), 550), nil
+			remote := e.RemoteIP
+			if !allowNet.Contains(remote) {
+				mainlog.Infof("Rejecting message from %s\n", remote)
+				if task == backends.TaskSaveMail {
+					return backends.NewResult(response.Canned.ErrorRelayDenied), backends.RcptError(errors.New("not allowed to send mail"))
+				} else { // validation
+					return backends.NewResult(response.Canned.ErrorRelayDenied), backends.RcptError(errors.New("not allowed to send mail"))
 				}
 			}
 			return c.Process(e, task)
