@@ -72,7 +72,6 @@ func main() {
 	viper.AddConfigPath(".")
 	viper.SetDefault("tls", true)
 	viper.SetDefault("selfsigned", false)
-	viper.SetDefault("recipients", "")
 	viper.SetEnvPrefix("gosendmail")
 	viper.AutomaticEnv()
 	err := viper.ReadInConfig()
@@ -128,7 +127,7 @@ var Auth = func() backends.Decorator {
 		}
 
 		return backends.ProcessWith(func(e *mail.Envelope, task backends.SelectTask) (backends.Result, error) {
-			if task == backends.TaskSaveMail {
+			if task == backends.TaskValidateRcpt {
 				remote := e.RemoteIP
 				if !allowNet.Contains(remote) {
 					mainlog.Infof("Rejecting message from %s\n", remote)

@@ -40,7 +40,6 @@ func main() {
 	}
 	explicitFrom := viper.GetString("from")
 	explicitTo := viper.GetString("recipients")
-	fmt.Printf("resume is: %t\n", viper.GetBool("resume"))
 
 	if viper.GetBool("resume") {
 		mc, err := cache.LoadMessageCache()
