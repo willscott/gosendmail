@@ -30,6 +30,8 @@ func RemoveHeader(msg *[]byte, header string) {
 	}
 	out := make([]byte, 0, len(*msg))
 	match := []byte(header + ":")
+	lcMatch := []byte(strings.ToLower(header) + ":")
+	ucMatch := []byte(strings.ToUpper(header) + ":")
 	for startPtr < endPtr {
 		nextPtr := bytes.Index((*msg)[startPtr:], []byte{13, 10}) + 2
 		// headers keep going until a line that doesn't start with space/tab
@@ -37,7 +39,7 @@ func RemoveHeader(msg *[]byte, header string) {
 			nextPtr = nextPtr + bytes.Index((*msg)[startPtr+nextPtr:], []byte{13, 10}) + 2
 		}
 
-		if !bytes.HasPrefix((*msg)[startPtr:], match) {
+		if !bytes.HasPrefix((*msg)[startPtr:], match) && !bytes.HasPrefix((*msg)[startPtr:], lcMatch) && !bytes.HasPrefix((*msg)[startPtr:], ucMatch) {
 			out = append(out, (*msg)[startPtr:startPtr+nextPtr]...)
 		}
 		startPtr += nextPtr
