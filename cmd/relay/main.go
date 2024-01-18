@@ -1,26 +1,24 @@
 package main
 
 import (
-	"bytes"
-	"io"
+	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/flashmob/go-guerrilla"
 	"github.com/flashmob/go-guerrilla/backends"
 	"github.com/flashmob/go-guerrilla/log"
 	"github.com/flashmob/go-guerrilla/mail"
+	"github.com/kballard/go-shellquote"
 
+	"github.com/3th1nk/cidr"
 	"github.com/spf13/viper"
-	"github.com/willscott/gosendmail/lib"
-)
-
-const (
-	defaultPidFile = "/var/run/gosendmailrelay.pid"
 )
 
 var (
@@ -37,7 +35,6 @@ func sigHandler() {
 		syscall.SIGTERM,
 		syscall.SIGQUIT,
 		syscall.SIGINT,
-		syscall.SIGKILL,
 		syscall.SIGUSR1,
 	)
 	// Keep the daemon busy by waiting for signals to come
@@ -86,6 +83,7 @@ func main() {
 	// start up the server.
 	d = guerrilla.Daemon{Logger: mainlog}
 	d.AddProcessor("Relay", Processor)
+	d.AddProcessor("Gate", Auth)
 
 	cf := viper.GetViper().ConfigFileUsed()
 	if _, err := d.LoadConfig(cf); err != nil {
@@ -116,104 +114,72 @@ func main() {
 	sigHandler()
 }
 
-// Processor allows the 'relay' option for guerrilla
-var Processor = func() backends.Decorator {
+var Auth = func() backends.Decorator {
 	return func(c backends.Processor) backends.Processor {
-		// The function will be called on each email transaction.
-		// On success, it forwards to the next step in the processor call-stack,
-		// or returns with an error if failed
+		allowedNetStr := viper.GetString("AllowedNetwork")
+		allowNet := &cidr.CIDR{}
+		if len(allowedNetStr) > 0 {
+			var err error
+			allowNet, err = cidr.Parse(allowedNetStr)
+			if err != nil {
+				mainlog.Fatalf("Fatal: failed to parse allowed networks %s\n", err)
+				return nil
+			}
+		}
+
 		return backends.ProcessWith(func(e *mail.Envelope, task backends.SelectTask) (backends.Result, error) {
 			if task == backends.TaskSaveMail {
-				handler(e.NewReader())
-				return c.Process(e, task)
+				remote := e.RemoteIP
+				if !allowNet.Contains(remote) {
+					mainlog.Infof("Rejecting message from %s\n", remote)
+					return backends.NewResult(fmt.Sprintf("550 5.7.1 %s is not allowed to send mail", remote), 550), nil
+				}
 			}
 			return c.Process(e, task)
 		})
 	}
 }
 
-func handler(rawMsg io.Reader) {
-	// get mail as input
-	msg := lib.ReadMessage(rawMsg)
-
-	// Parse msg
-	parsed := lib.ParseMessage(&msg)
-
-	cfg := lib.GetConfig(parsed.SourceDomain)
-	if cfg == nil {
-		mainlog.Fatalf("Fatal: No configuration for sender %s\n", parsed.SourceDomain)
-	}
-	if cfg.DkimKeyCmd != "" {
-		if err := lib.SignMessage(parsed, cfg); err != nil {
-			mainlog.Fatalf("Fatal: failed to sign %s\n", err)
+// Processor allows the 'relay' option for guerrilla
+var Processor = func() backends.Decorator {
+	return func(c backends.Processor) backends.Processor {
+		sc := viper.GetString("SendCommand")
+		shq, err := shellquote.Split(sc)
+		if err != nil {
+			mainlog.Fatalf("Fatal: failed to parse send command %s\n", err)
+			return nil
 		}
+
+		// The function will be called on each email transaction.
+		// On success, it forwards to the next step in the processor call-stack,
+		// or returns with an error if failed
+		return backends.ProcessWith(func(e *mail.Envelope, task backends.SelectTask) (backends.Result, error) {
+			if task == backends.TaskSaveMail {
+				ctx, cncl := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cncl()
+				child := exec.CommandContext(ctx, shq[0], shq[1:]...)
+
+				child.Stdin = &e.Data
+				dlp := e.RcptTo
+				destList := ""
+				for _, dest := range dlp {
+					if destList != "" {
+						destList = destList + ", " + dest.String()
+					} else {
+						destList = "" + dest.String()
+					}
+				}
+				child.Env = []string{"GOSENDMAIL_FROM=" + e.MailFrom.String(), "GOSENDMAIL_RECIPIENTS=" + destList}
+				out, err := child.Output()
+				if err != nil {
+					mainlog.WithError(fmt.Errorf("sendmail err %w: %s", err, out)).Errorf("Failed to send mail")
+					return backends.NewResult("550 5.7.1 Failed to send mail", 550), nil
+				}
+				return backends.NewResult("250 2.0.0 OK: queued", 250), nil
+			}
+			return c.Process(e, task)
+		})
 	}
-
-	rcptOverride := viper.GetString("recipients")
-	if rcptOverride != "" {
-		mainlog.Printf("Over-riding recipients to %s", rcptOverride)
-		parsed.SetRecipients(rcptOverride)
-	}
-
-	for _, dest := range parsed.DestDomain {
-		mainlog.Printf("sending: connecting to %s\n", dest)
-		SendTo(dest, &parsed, cfg, msg, viper.GetBool("tls"), viper.GetBool("selfsigned"))
-	}
-	mainlog.Printf("sending: finished\n")
-}
-
-// SendTo sends a parsed message
-func SendTo(dest string, parsed *lib.ParsedMessage, cfg *lib.Config, msg []byte, tls bool, selfSigned bool) {
-	// enumerate possible mx IPs
-	hosts := lib.FindServers(dest)
-
-	// open connection
-	conn, hostname := lib.DialFromList(hosts, cfg)
-	if err := conn.Hello(parsed.SourceDomain); err != nil {
-		mainlog.Fatalf("Fatal: negotiating hello with %s: %v", hostname, err)
-	}
-
-	// try ssl upgrade
-	if tls {
-		if err := lib.StartTLS(conn, hostname, cfg, selfSigned); err != nil {
-			mainlog.Fatalf("Fatal: negotiating starttls with %s: %v", hostname, err)
-		}
-	}
-
-	// send email
-	if err := conn.Mail(parsed.Sender); err != nil {
-		mainlog.Fatalf("Fatal: setting mailfrom: %v\n", err)
-	}
-
-	rcpts := ""
-	for _, rcpt := range parsed.Rcpt[dest] {
-		if err := conn.Rcpt(rcpt); err != nil {
-			mainlog.Fatalf("Fatal: setting rcpt %s: %v\n", rcpt, err)
-		}
-		if rcpts != "" {
-			rcpts = rcpts + ", "
-		}
-		rcpts = rcpts + rcpt
-	}
-
-	// Send the email body.
-	wc, err := conn.Data()
-	if err != nil {
-		mainlog.Fatalf("Fatal: sending data: %v\n", err)
-	}
-
-	if _, err := io.Copy(wc, bytes.NewReader(msg)); err != nil {
-		mainlog.Fatalf("Fatal: copying bytes of body: %v\n", err)
-	}
-	err = wc.Close()
-	if err != nil {
-		mainlog.Fatalf("Fatal: concluding data: %v\n", err)
-	}
-
-	mainlog.Printf("Delivered: %s\n", rcpts)
-
-	// Send the QUIT command and close the connection.
-	conn.Quit()
 }
 
 func getFileLimit() int {
