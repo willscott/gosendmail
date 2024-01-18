@@ -36,9 +36,9 @@ func RemoveHeader(msg *[]byte, header string) {
 			nextPtr = nextPtr + bytes.Index((*msg)[startPtr+nextPtr:], []byte{13, 10}) + 2
 		}
 
-		headerNameEnd := bytes.Index((*msg)[startPtr:], []byte{byte(':')})
+		headerNameEnd := bytes.Index((*msg)[startPtr:startPtr+nextPtr], []byte{byte(':')})
 		headerStr := string((*msg)[startPtr : startPtr+headerNameEnd])
-		if strings.EqualFold(headerStr, header) {
+		if !strings.EqualFold(headerStr, header) {
 			out = append(out, (*msg)[startPtr:startPtr+nextPtr]...)
 		}
 		startPtr += nextPtr
