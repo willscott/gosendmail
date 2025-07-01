@@ -26,6 +26,7 @@ func main() {
 	viper.SetDefault("tls", true)
 	viper.SetDefault("selfsigned", false)
 	viper.SetDefault("recipients", "")
+	viper.SetDefault("sender", "")
 	viper.SetEnvPrefix("gosendmail")
 	viper.AutomaticEnv()
 	err := viper.ReadInConfig()
@@ -39,6 +40,12 @@ func main() {
 	// Parse msg
 	parsed := lib.ParseMessage(&msg)
 
+	// Set explicit sender if specified
+	if explicitFrom := viper.GetString("sender"); explicitFrom != "" {
+		if err := parsed.SetSender(explicitFrom); err != nil {
+			log.Fatalf("Fatal: %v\n", err)
+		}
+	}
 	cfg := lib.GetConfig(parsed.SourceDomain)
 	if cfg == nil {
 		log.Fatalf("Fatal: No configuration for sender %s\n", parsed.SourceDomain)
