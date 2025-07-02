@@ -79,7 +79,7 @@ func main() {
 				log.Fatalf("Failed to prepare message: %v", err)
 			}
 			if viper.GetBool("replace-recipients") {
-				parsed.PrependToHeader(explicitTo)
+				parsed.ReplaceToHeader(explicitTo)
 			}
 		}
 		if err = prepareMessage(parsed); err != nil {
