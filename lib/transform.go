@@ -151,3 +151,30 @@ func SignMessage(parsed ParsedMessage, cfg *Config) error {
 
 	return dkim.Sign(parsed.Bytes, options)
 }
+
+/*
+func SealMessage(parsed ParsedMessage, cfg *Config) error {
+	instanceID := extractInstanceID(parsed.Message.Header)
+	header := "ARC-Authentication-Results: i=" + strconv.Itoa(instanceID+1) + "; " +
+}
+
+// extract the ARC instance number from the message header.
+func extractInstanceID(header mail.Header) int {
+	maxI := 0
+	for _, v := range header["ARC-Seal"] {
+		parts := strings.Split(v, ";")
+		for _, p := range parts {
+			if strings.HasPrefix(p, "i=") {
+				i := strings.TrimPrefix(p, "i=")
+				if i == "" {
+					continue
+				}
+				if iInt, err := strconv.Atoi(i); err == nil && iInt > maxI {
+					maxI = iInt
+				}
+			}
+		}
+	}
+	return maxI
+}
+*/

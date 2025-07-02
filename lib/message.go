@@ -251,3 +251,9 @@ func (p *ParsedMessage) RemoveRecipients(other string) error {
 	}
 	return p.SetRecipients(out)
 }
+
+func (p *ParsedMessage) PrependToHeader(recipients string) {
+	// prepend recipients to the To header
+	header := "To: " + recipients + "\r\n"
+	*p.Bytes = append([]byte(header), *p.Bytes...)
+}

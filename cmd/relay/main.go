@@ -41,16 +41,17 @@ func sigHandler() {
 	)
 	// Keep the daemon busy by waiting for signals to come
 	for sig := range signalChannel {
-		if sig == syscall.SIGHUP {
+		switch sig {
+		case syscall.SIGHUP:
 			viper.ReadInConfig()
 			cf := viper.GetViper().ConfigFileUsed()
 			d.ReloadConfigFile(cf)
-		} else if sig == syscall.SIGUSR1 {
+		case syscall.SIGUSR1:
 			d.ReopenLogs()
-		} else if sig == syscall.SIGTERM || sig == syscall.SIGQUIT || sig == syscall.SIGINT {
+		case syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGINT:
 			d.Shutdown()
 			return
-		} else {
+		default:
 			return
 		}
 	}
