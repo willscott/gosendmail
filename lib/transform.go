@@ -60,7 +60,7 @@ func SanitizeMessage(parsed ParsedMessage, cfg *Config, forward bool) error {
 
 	if forward {
 		// Remove potentially-revealing headers.
-		removedHeaders := []string{"Date", "BCC", "X-Mailer"}
+		removedHeaders := []string{"Date", "Delivered-To", "BCC", "X-Mailer"}
 		for _, h := range removedHeaders {
 			RemoveHeader(parsed.Bytes, h)
 		}
