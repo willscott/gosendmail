@@ -254,38 +254,14 @@ func (p *ParsedMessage) RemoveRecipients(other string) error {
 
 func (p *ParsedMessage) ReplaceToHeader(recipients string) {
 	// prepend recipients to the To header
+	RemoveHeader(p.Bytes, "To")
 	header := "To: " + recipients + "\r\n"
-	lines := bytes.Split(*p.Bytes, []byte("\n"))
-	buf := bytes.NewBuffer(nil)
-	buf.WriteString(header)
-	for _, line := range lines {
-		if bytes.HasPrefix(line, []byte("To: ")) {
-			// skip existing To header
-			continue
-		}
-		buf.Write(line)
-		buf.WriteByte('\n')
-	}
-	*p.Bytes = buf.Bytes()
+	*p.Bytes = append([]byte(header), *p.Bytes...)
 }
 
 func (p *ParsedMessage) ReplaceFromHeader(source string) {
 	// prepend recipients to the To header
+	RemoveHeader(p.Bytes, "From")
 	header := "From: " + source + "\r\n"
-	lines := bytes.Split(*p.Bytes, []byte("\n"))
-	buf := bytes.NewBuffer(nil)
-	buf.WriteString(header)
-	for _, line := range lines {
-		if bytes.HasPrefix(line, []byte("From: ")) {
-			// re-write to 'reply-to'
-			oldSrc := strings.TrimPrefix(string(line), "From: ")
-			if oldSrc != source {
-				buf.WriteString("Reply-To: " + oldSrc + "\r\n")
-			}
-			continue
-		}
-		buf.Write(line)
-		buf.WriteByte('\n')
-	}
-	*p.Bytes = buf.Bytes()
+	*p.Bytes = append([]byte(header), *p.Bytes...)
 }

@@ -20,6 +20,7 @@ func init() {
 	flag.CommandLine.BoolP("resume", "r", false, "Attempt delivery of queued messages")
 	flag.CommandLine.StringP("from", "f", "", "Use explicit sender separate from the address parsed in the msg")
 	flag.CommandLine.BoolP("replace-recipients", "o", false, "Overwrite to header recipients / 'forward mode'")
+	flag.CommandLine.BoolP("replace-from", "w", false, "Overwrite to source from address")
 }
 
 func main() {
@@ -74,7 +75,7 @@ func main() {
 			if err = parsed.SetSender(explicitFrom); err != nil {
 				log.Fatalf("Failed to prepare message: %v", err)
 			}
-			if viper.GetBool("replace-recipients") {
+			if viper.GetBool("replace-from") {
 				parsed.ReplaceFromHeader(explicitFrom)
 			}
 		}
