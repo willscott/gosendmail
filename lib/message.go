@@ -268,3 +268,24 @@ func (p *ParsedMessage) ReplaceToHeader(recipients string) {
 	}
 	*p.Bytes = buf.Bytes()
 }
+
+func (p *ParsedMessage) ReplaceFromHeader(source string) {
+	// prepend recipients to the To header
+	header := "From: " + source + "\r\n"
+	lines := bytes.Split(*p.Bytes, []byte("\n"))
+	buf := bytes.NewBuffer(nil)
+	buf.WriteString(header)
+	for _, line := range lines {
+		if bytes.HasPrefix(line, []byte("From: ")) {
+			// re-write to 'reply-to'
+			oldSrc := strings.TrimPrefix(string(line), "From: ")
+			if oldSrc != source {
+				buf.WriteString("Reply-To: " + oldSrc + "\r\n")
+			}
+			continue
+		}
+		buf.Write(line)
+		buf.WriteByte('\n')
+	}
+	*p.Bytes = buf.Bytes()
+}

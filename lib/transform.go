@@ -51,26 +51,38 @@ func RemoveHeader(msg *[]byte, header string) {
 // for the sending domain, and uses these to transform the message into one that is
 // more privacy preserving - in particular by quantizing identifying dates and
 // message IDs. The byte buffer of the message is modified in-place.
-func SanitizeMessage(parsed ParsedMessage, cfg *Config) error {
+func SanitizeMessage(parsed ParsedMessage, cfg *Config, forward bool) error {
 	// line endings.
 	if !bytes.Contains(*parsed.Bytes, []byte{13, 10, 13, 10}) {
 		// \n -> \r\n
 		*parsed.Bytes = bytes.Replace(*parsed.Bytes, []byte{10}, []byte{13, 10}, -1)
 	}
 
-	// Remove potentially-revealing headers.
-	removedHeaders := []string{"Date", "Message-ID", "BCC", "X-Mailer"}
-	for _, h := range removedHeaders {
-		RemoveHeader(parsed.Bytes, h)
+	if forward {
+		// Remove potentially-revealing headers.
+		removedHeaders := []string{"Date", "BCC", "X-Mailer"}
+		for _, h := range removedHeaders {
+			RemoveHeader(parsed.Bytes, h)
+		}
+
+		header := "Date: " + time.Now().Truncate(15*time.Minute).UTC().Format(time.RFC1123Z) + "\r\n"
+		*parsed.Bytes = append([]byte(header), *parsed.Bytes...)
+
+	} else {
+		// Remove potentially-revealing headers.
+		removedHeaders := []string{"Date", "Message-ID", "BCC", "X-Mailer"}
+		for _, h := range removedHeaders {
+			RemoveHeader(parsed.Bytes, h)
+		}
+
+		// set date
+		header := "Date: " + time.Now().Truncate(15*time.Minute).UTC().Format(time.RFC1123Z) + "\r\n"
+		*parsed.Bytes = append([]byte(header), *parsed.Bytes...)
+
+		// set message id
+		header = "Message-ID: <" + parsed.Hash() + "@" + parsed.SourceDomain + ">\r\n"
+		*parsed.Bytes = append([]byte(header), *parsed.Bytes...)
 	}
-
-	// set date
-	header := "Date: " + time.Now().Truncate(15*time.Minute).UTC().Format(time.RFC1123Z) + "\r\n"
-	*parsed.Bytes = append([]byte(header), *parsed.Bytes...)
-
-	// set message id
-	header = "Message-ID: <" + parsed.Hash() + "@" + parsed.SourceDomain + ">\r\n"
-	*parsed.Bytes = append([]byte(header), *parsed.Bytes...)
 
 	// Reload the parsed Message from the sanitized version.
 	m, err := mail.ReadMessage(bytes.NewReader(*parsed.Bytes))

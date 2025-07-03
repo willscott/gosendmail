@@ -19,7 +19,7 @@ func init() {
 	flag.CommandLine.BoolP("queue", "s", false, "Store message to queue if not sent successfully")
 	flag.CommandLine.BoolP("resume", "r", false, "Attempt delivery of queued messages")
 	flag.CommandLine.StringP("from", "f", "", "Use explicit sender separate from the address parsed in the msg")
-	flag.CommandLine.BoolP("replace-recipients", "o", false, "Overwrite to header env recipients")
+	flag.CommandLine.BoolP("replace-recipients", "o", false, "Overwrite to header recipients / 'forward mode'")
 }
 
 func main() {
@@ -69,9 +69,13 @@ func main() {
 
 		// Parse msg
 		parsed := lib.ParseMessage(&msg)
+		forward := false
 		if len(explicitFrom) > 0 {
 			if err = parsed.SetSender(explicitFrom); err != nil {
 				log.Fatalf("Failed to prepare message: %v", err)
+			}
+			if viper.GetBool("replace-recipients") {
+				parsed.ReplaceFromHeader(explicitFrom)
 			}
 		}
 		if len(explicitTo) > 0 {
@@ -80,9 +84,10 @@ func main() {
 			}
 			if viper.GetBool("replace-recipients") {
 				parsed.ReplaceToHeader(explicitTo)
+				forward = true
 			}
 		}
-		if err = prepareMessage(parsed); err != nil {
+		if err = prepareMessage(parsed, forward); err != nil {
 			log.Fatalf("Failed to prepare message: %v", err)
 		}
 
@@ -105,13 +110,13 @@ func main() {
 	}
 }
 
-func prepareMessage(parsed lib.ParsedMessage) error {
+func prepareMessage(parsed lib.ParsedMessage, forward bool) error {
 	cfg := lib.GetConfig(parsed.SourceDomain)
 	if cfg == nil {
 		return fmt.Errorf("no configuration for sender %s", parsed.SourceDomain)
 	}
 
-	if err := lib.SanitizeMessage(parsed, cfg); err != nil {
+	if err := lib.SanitizeMessage(parsed, cfg, forward); err != nil {
 		return err
 	}
 
